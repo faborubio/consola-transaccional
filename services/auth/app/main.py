@@ -85,7 +85,8 @@ def custom_openapi():
         "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
     }
     schema["security"] = [{"bearerAuth": []}]
-    for path, public in (("/health", True), ("/auth/login", True), ("/auth/refresh", True)):
+    public_paths = ("/health", "/auth/login", "/auth/refresh", "/auth/logout")
+    for path, public in ((p, True) for p in public_paths):
         for op in schema["paths"].get(path, {}).values():
             op["security"] = [] if public else op.get("security")
     for ops in schema["paths"].values():

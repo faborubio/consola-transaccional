@@ -40,7 +40,14 @@ export class AuthApiService {
     return this.client.getCurrentUser();
   }
 
+  /** Limpia local de inmediato y revoca la familia en el servidor
+   * (best-effort: el 204 está garantizado, pero si la red falla el TTL
+   * del refresh sigue siendo la cota superior). */
   logout(): void {
+    const refreshToken = this.store.refreshToken();
     this.store.clear();
+    if (refreshToken) {
+      this.client.logout({ refreshToken }).subscribe({ error: () => undefined });
+    }
   }
 }

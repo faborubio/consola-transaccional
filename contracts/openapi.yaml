@@ -111,6 +111,34 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cerrar sesión y revocar la familia de refresh tokens
+      description: >
+        Revoca en el servidor la familia completa de refresh tokens de la
+        sesión. Siempre responde 204: no revela si el token era válido, y un
+        logout "fallido" no le sirve de nada a un atacante (revocar es inocuo).
+        Sin esto, "cerrar sesión" solo borraría tokens del cliente y la familia
+        seguiría viva hasta su TTL.
+      operationId: logout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '204':
+          description: Sesión revocada (o token irrelevante; no se distingue).
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /auth/me:
     get:
       tags: [auth]

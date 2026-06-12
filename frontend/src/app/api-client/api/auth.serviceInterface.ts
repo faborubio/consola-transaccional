@@ -39,6 +39,13 @@ export interface AuthServiceInterface {
     login(loginRequest: LoginRequest, extraHttpRequestParams?: any): Observable<TokenPair>;
 
     /**
+     * Cerrar sesión y revocar la familia de refresh tokens
+     * Revoca en el servidor la familia completa de refresh tokens de la sesión. Siempre responde 204: no revela si el token era válido, y un logout \&quot;fallido\&quot; no le sirve de nada a un atacante (revocar es inocuo). Sin esto, \&quot;cerrar sesión\&quot; solo borraría tokens del cliente y la familia seguiría viva hasta su TTL. 
+     * @param refreshTokenRequest 
+     */
+    logout(refreshTokenRequest: RefreshTokenRequest, extraHttpRequestParams?: any): Observable<{}>;
+
+    /**
      * Renovar el access token con un refresh token
      * 
      * @param refreshTokenRequest 

@@ -77,6 +77,20 @@ async def refresh(
         raise ApiError(401, "UNAUTHORIZED", str(exc)) from exc
 
 
+@router.post(
+    "/logout",
+    operation_id="logout",
+    summary="Cerrar sesión y revocar la familia de refresh tokens",
+    status_code=204,
+    responses={422: {"model": Error}},
+)
+async def logout(
+    body: RefreshRequest,
+    tokens: Annotated[TokenService, Depends(get_token_service)],
+) -> None:
+    await tokens.revoke_session(body.refreshToken)
+
+
 @router.get(
     "/me",
     operation_id="getCurrentUser",

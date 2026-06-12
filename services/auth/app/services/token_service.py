@@ -114,3 +114,12 @@ class TokenService:
         if user is None:
             raise InvalidTokenError("Usuario inexistente.")
         return await self.issue_pair(user, family_id=family_id)
+
+    async def revoke_session(self, refresh_token: str) -> None:
+        """Logout server-side: revoca la familia completa. Nunca falla hacia
+        afuera — no se revela si el token era válido, y revocar es inocuo."""
+        try:
+            claims = decode_token(refresh_token, expected_typ="refresh")
+        except InvalidTokenError:
+            return
+        await self.repo.revoke_family(claims["fam"])

@@ -78,6 +78,13 @@ Verificación rápida: `curl http://localhost:8080/health` y
 - **Tokens en localStorage:** tradeoff consciente de demo; un banco real usaría
   cookies httpOnly tras un BFF. El interceptor comparte el refresh en vuelo
   para que N requests con 401 simultáneos no quemen la familia.
+- **Sin blacklist de access tokens en Redis (descarte deliberado):** con access
+  de 15 minutos, logout server-side que revoca la familia de refresh y
+  detección de reuso, la ventana de exposición de un access robado es ≤15 min.
+  Una blacklist consultada en cada request agrega estado compartido y latencia
+  a todos los servicios para cubrir solo esa ventana — costo desproporcionado
+  aquí. Si el requisito fuera revocación inmediata (v2), este es el punto de
+  entrada documentado.
 
 Plan completo de fases: [docs/plan-consola-transaccional-sonda.md](docs/plan-consola-transaccional-sonda.md).
 Registro de problemas → causa → solución: [docs/problemas-resueltos.md](docs/problemas-resueltos.md).

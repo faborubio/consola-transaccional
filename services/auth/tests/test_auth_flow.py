@@ -97,3 +97,19 @@ def test_access_no_sirve_para_refresh(client):
     pair = _login(client)
     res = client.post("/auth/refresh", json={"refreshToken": pair["accessToken"]})
     assert res.status_code == 401
+
+
+def test_logout_revoca_la_familia(client):
+    pair = _login(client)
+    res = client.post("/auth/logout", json={"refreshToken": pair["refreshToken"]})
+    assert res.status_code == 204
+
+    # El refresh de la sesión cerrada ya no sirve.
+    res = client.post("/auth/refresh", json={"refreshToken": pair["refreshToken"]})
+    assert res.status_code == 401
+
+
+def test_logout_con_token_invalido_tambien_204(client):
+    # No se revela si el token era válido; revocar es inocuo.
+    res = client.post("/auth/logout", json={"refreshToken": "no.es.jwt"})
+    assert res.status_code == 204

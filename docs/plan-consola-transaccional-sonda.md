@@ -239,6 +239,13 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.4 → v1.5 (auditoría post-Fase 2 — 2026-06-12)
+
+1. **`POST /auth/logout` agregado al contrato (v1):** revoca la familia de refresh server-side; siempre 204 (no revela validez del token; revocar es inocuo). Sin esto, "cerrar sesión" dejaba la familia viva hasta su TTL de 7 días.
+2. **El 429 del gateway cumple el contrato:** nginx devolvía su página HTML; ahora `error_page 429` retorna el esquema `Error` JSON + `Retry-After`.
+3. **Test del interceptor de refresh:** dos 401 paralelos → exactamente UN llamado a `/auth/refresh` y ambos requests reintentados con el token nuevo. Es la garantía que evita que la rotación con detección de reuso queme la familia ante concurrencia normal del frontend.
+4. **Blacklist de JWT en Redis: descartada y documentada** (README): access de 15 min + logout que revoca familia + detección de reuso cubren el riesgo; una blacklist por request agrega estado y latencia desproporcionados. Punto de entrada documentado si v2 exigiera revocación inmediata.
+
 ### v1.3 → v1.4 (refuerzos post-Fase 1 — 2026-06-12)
 
 > Revisión deliberada al cierre de las fases de tubería: qué ajustar barato hoy

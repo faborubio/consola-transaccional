@@ -20,8 +20,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authApi = inject(AuthApiService);
   const router = inject(Router);
 
-  // login y refresh son públicos y no deben reintentarse a sí mismos
-  if (req.url.includes('/auth/login') || req.url.includes('/auth/refresh')) {
+  // los endpoints públicos de auth no llevan token ni deben reintentarse
+  if (/\/auth\/(login|refresh|logout)$/.test(req.url)) {
     return next(req);
   }
 
