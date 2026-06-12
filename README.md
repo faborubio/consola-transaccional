@@ -84,7 +84,6 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   test de `explain()` que falla con COLLSCAN o SORT en memoria — corre en CI
   contra un Mongo replica set real; listado filtrado responde en ~10ms
 - [ ] Fase 2 — Auth: JWT RS256, RBAC, rotación de refresh tokens
-- [ ] Fase 2 — Auth: JWT RS256, RBAC, rotación de refresh tokens
 - [ ] Fase 3 — Consola completa: todos los filtros, detalle, errores mapeados
 - [ ] Fase 4 — Flujo transaccional: máquina de estados, maker-checker,
   idempotencia, bloqueo optimista, auditoría atómica
