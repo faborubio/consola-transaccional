@@ -7,6 +7,27 @@
 
 ---
 
+## 2026-06-12 — Fase 1
+
+### 15. `docker compose wait` no sirve para one-shots ya salidos — RESUELTO
+- **Problema:** `docker compose wait mongo-init` → "no containers for project" si el init ya terminó.
+- **Causa:** `wait` solo considera contenedores corriendo.
+- **Solución:** `docker compose run --rm mongo-init` — arranca la dependencia `mongo` (espera healthcheck), corre el init en foreground y propaga su exit code. Es lo que usa el job `indexes` del CI y es idempotente.
+
+### 14. `AsyncMongoClient` se ata al event loop donde nació — RESUELTO
+- **Problema:** los tests async de índices fallaban con `Cannot use AsyncMongoClient in different event loop`.
+- **Causa:** pytest-asyncio crea un loop por test; el cliente global cacheado en `transactions_repo.get_db()` quedó atado al loop del primer test.
+- **Solución:** `asyncio_default_fixture_loop_scope = "session"` y `asyncio_default_test_loop_scope = "session"` en `pyproject.toml` — un solo loop para toda la sesión de tests.
+- **Cómo evitarlo:** cualquier servicio nuevo que use pymongo async + pytest-asyncio necesita esas dos líneas desde el día uno.
+
+### 13. Ordenar por monto sin filtro hacía COLLSCAN + SORT — RESUELTO (atrapado por el test)
+- **Problema:** `sort=-amount` sin filtro de estado escaneaba la colección completa y ordenaba en memoria (a 500k revienta el límite de 32MB de sort).
+- **Causa:** los índices ESR cubrían estado+fecha y estado+monto, pero la API permite ordenar por monto sin filtros y ese patrón no tenía índice.
+- **Solución:** índice `(amount: -1, _id: -1)` en `ensure_indexes()` y en el seed.
+- **Cómo evitarlo:** este es exactamente el trabajo del test `tests/test_indexes.py`: todo patrón de listado nuevo (filtro o campo de orden) se agrega a `DOMINANT_QUERIES` y el test exige plan sin COLLSCAN ni SORT bloqueante.
+
+---
+
 ## 2026-06-12 — Fase 0
 
 ### 1. `node`/`npm` de Windows contaminan el PATH de WSL — RESUELTO

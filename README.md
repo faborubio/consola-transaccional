@@ -80,7 +80,10 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   servicio `transactions` (listado con cursor compuesto + filtros, detalle,
   auditoría), Mongo replica set + Redis + gateway en Compose, cliente Angular
   generado, consola con filtros en URL, CI con candado anti-drift.
-- [ ] Fase 1 — Volumen: seed 500k, test `explain()` sin COLLSCAN
+- [x] **Fase 1 — Volumen:** seed 500k en ~64s, índices ESR (+ monto sin filtro),
+  test de `explain()` que falla con COLLSCAN o SORT en memoria — corre en CI
+  contra un Mongo replica set real; listado filtrado responde en ~10ms
+- [ ] Fase 2 — Auth: JWT RS256, RBAC, rotación de refresh tokens
 - [ ] Fase 2 — Auth: JWT RS256, RBAC, rotación de refresh tokens
 - [ ] Fase 3 — Consola completa: todos los filtros, detalle, errores mapeados
 - [ ] Fase 4 — Flujo transaccional: máquina de estados, maker-checker,

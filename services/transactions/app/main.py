@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,11 +6,19 @@ from fastapi import FastAPI
 from app.api.errors import register_error_handlers
 from app.api.routes_health import router as health_router
 from app.api.routes_transactions import router as transactions_router
-from app.repository.transactions_repo import close_client
+from app.repository.transactions_repo import TransactionsRepository, close_client
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Best-effort: el servicio levanta aunque Mongo no esté (p. ej. tests de
+    # la capa HTTP); las queries fallarán igual si la base no aparece.
+    try:
+        await TransactionsRepository().ensure_indexes()
+    except Exception:  # noqa: BLE001
+        logger.warning("No se pudieron asegurar los índices al arranque", exc_info=True)
     yield
     await close_client()
 

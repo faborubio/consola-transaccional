@@ -25,6 +25,26 @@ jobs:
       - name: Tests (pytest)
         run: uv run pytest -q
 
+  indexes:
+    name: Índices (explain anti-COLLSCAN sobre Mongo real)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Levantar Mongo replica set
+        # `run` arranca mongo (espera su healthcheck), ejecuta el init en
+        # foreground y propaga su exit code — `compose wait` no sirve para
+        # one-shots que ya salieron.
+        run: docker compose -f infra/docker-compose.yml run --rm mongo-init
+      - name: Seed reducido (los planes de query no necesitan 500k)
+        working-directory: infra/seed
+        run: uv run seed.py --count 20000 --drop
+      - name: Tests de índices
+        working-directory: services/transactions
+        run: |
+          uv sync --frozen
+          uv run pytest tests/test_indexes.py -q
+
   anti-drift:
     name: Candado anti-drift (contrato vs runtime)
     runs-on: ubuntu-latest

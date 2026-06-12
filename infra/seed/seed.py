@@ -117,6 +117,7 @@ def main() -> None:
     print(f"Listo: {inserted:,} transacciones en {time.monotonic() - start:.1f}s")
     print("Creando índices ESR…")
     col.create_index([("createdAt", -1), ("_id", -1)])
+    col.create_index([("amount", -1), ("_id", -1)])
     col.create_index([("status", 1), ("createdAt", -1), ("_id", -1)])
     col.create_index([("status", 1), ("amount", -1), ("_id", -1)])
     print("Índices listos.")

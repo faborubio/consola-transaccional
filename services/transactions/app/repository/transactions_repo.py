@@ -22,7 +22,7 @@ def get_db():
     global _client
     settings = get_settings()
     if _client is None:
-        _client = AsyncMongoClient(settings.mongo_uri)
+        _client = AsyncMongoClient(settings.mongo_uri, serverSelectionTimeoutMS=5000)
     return _client[settings.mongo_db]
 
 
@@ -70,6 +70,7 @@ class TransactionsRepository:
     async def ensure_indexes(self) -> None:
         """Índices ESR para los patrones de acceso dominantes (ver Fase 1)."""
         await self.transactions.create_index([("createdAt", -1), ("_id", -1)])
+        await self.transactions.create_index([("amount", -1), ("_id", -1)])
         await self.transactions.create_index([("status", 1), ("createdAt", -1), ("_id", -1)])
         await self.transactions.create_index([("status", 1), ("amount", -1), ("_id", -1)])
         await self.audit.create_index([("transactionId", 1), ("at", 1)])
