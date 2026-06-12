@@ -36,14 +36,10 @@ FastAPI emite en runtime contra el contrato — el build falla si divergen.
 Requisitos: Docker (con Compose), Node 20+, [uv](https://docs.astral.sh/uv/).
 
 ```bash
-# 1. Infra completa: gateway + transactions + Mongo (replica set) + Redis
-docker compose -f infra/docker-compose.yml up -d --build
-
-# 2. Seed: 500k transacciones con distribuciones realistas (~1-2 min)
-cd infra/seed && uv run seed.py --drop
-
-# 3. Frontend
-cd frontend && npm ci && npm start    # http://localhost:4200
+make up      # gateway + transactions + Mongo (replica set) + Redis
+make seed    # 500k transacciones con distribuciones realistas (~1 min)
+make front   # http://localhost:4200  (antes: cd frontend && npm ci)
+make help    # todos los comandos (tests, drift, regenerar cliente…)
 ```
 
 Verificación rápida: `curl http://localhost:8080/health` y
@@ -68,6 +64,9 @@ Verificación rápida: `curl http://localhost:8080/health` y
 - **Sin cache de listados:** con índices ESR correctos sobre 500k documentos no
   hace falta, y la invalidación con filtros combinables no tiene solución
   elegante. Redis gana su lugar con idempotencia y rate limiting.
+- **Búsqueda de contraparte por prefijo, no substring:** el prefijo anclado
+  sobre un campo normalizado (`searchKeys`, índice multikey) usa índice; un
+  substring a volumen sería COLLSCAN siempre (full-text descartado en v1).
 - **JWT RS256 (Fase 2):** solo `auth` posee la clave privada; ningún otro
   servicio puede emitir tokens.
 

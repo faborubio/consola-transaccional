@@ -56,6 +56,22 @@ def weighted(choices: dict[str, float]) -> str:
     return random.choices(list(choices), weights=list(choices.values()), k=1)[0]
 
 
+def search_keys(source: dict, destination: dict) -> list[str]:
+    """Claves normalizadas para búsqueda por prefijo (índice multikey).
+
+    Una regex sin anclar sobre los nombres no puede usar índices; el prefijo
+    anclado sobre este campo en minúsculas sí.
+    """
+    return sorted(
+        {
+            source["name"].lower(),
+            destination["name"].lower(),
+            source["accountId"].lower(),
+            destination["accountId"].lower(),
+        }
+    )
+
+
 def build_txn(parties: list[dict], now: datetime) -> dict:
     status = weighted(STATUS_WEIGHTS)
     currency = weighted(CURRENCY_WEIGHTS)
@@ -70,6 +86,7 @@ def build_txn(parties: list[dict], now: datetime) -> dict:
         "version": 1,
         "source": source,
         "destination": destination,
+        "searchKeys": search_keys(source, destination),
         "reference": f"Operación {random.randint(1000, 99999)}",
         "createdBy": random.choice(MAKERS),
         "reviewedBy": None,
@@ -120,6 +137,7 @@ def main() -> None:
     col.create_index([("amount", -1), ("_id", -1)])
     col.create_index([("status", 1), ("createdAt", -1), ("_id", -1)])
     col.create_index([("status", 1), ("amount", -1), ("_id", -1)])
+    col.create_index([("searchKeys", 1)])
     print("Índices listos.")
 
 

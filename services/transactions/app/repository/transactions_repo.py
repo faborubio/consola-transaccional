@@ -5,6 +5,7 @@ perezosa: el cliente no abre sockets hasta la primera operación, lo que permite
 levantar la app (y testear /health) sin Mongo disponible.
 """
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -73,6 +74,7 @@ class TransactionsRepository:
         await self.transactions.create_index([("amount", -1), ("_id", -1)])
         await self.transactions.create_index([("status", 1), ("createdAt", -1), ("_id", -1)])
         await self.transactions.create_index([("status", 1), ("amount", -1), ("_id", -1)])
+        await self.transactions.create_index([("searchKeys", 1)])
         await self.audit.create_index([("transactionId", 1), ("at", 1)])
 
 
@@ -102,12 +104,10 @@ def build_list_query(
     if currency:
         query["currency"] = currency
     if counterparty:
-        query["$or"] = [
-            {"source.name": {"$regex": counterparty, "$options": "i"}},
-            {"destination.name": {"$regex": counterparty, "$options": "i"}},
-            {"source.accountId": counterparty},
-            {"destination.accountId": counterparty},
-        ]
+        # Prefijo anclado sobre searchKeys (nombres y cuentas normalizados en
+        # minúsculas, índice multikey). Una regex sin anclar no usa índices.
+        needle = re.escape(counterparty.strip().lower())
+        query["searchKeys"] = {"$regex": f"^{needle}"}
     created: dict[str, datetime] = {}
     if date_from:
         created["$gte"] = date_from

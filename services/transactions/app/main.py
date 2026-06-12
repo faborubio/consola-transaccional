@@ -6,8 +6,10 @@ from fastapi import FastAPI
 from app.api.errors import register_error_handlers
 from app.api.routes_health import router as health_router
 from app.api.routes_transactions import router as transactions_router
+from app.observability import register_observability, setup_logging
 from app.repository.transactions_repo import TransactionsRepository, close_client
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -30,6 +32,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+register_observability(app)
 register_error_handlers(app)
 app.include_router(health_router)
 app.include_router(transactions_router)

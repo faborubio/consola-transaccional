@@ -105,6 +105,23 @@ async def test_listado_usa_indices(desc: str, partial: dict, sort: str):
     assert not bad, f"[{desc}] plan ganador usa {bad}; stages: {stages}"
 
 
+async def test_counterparty_prefijo_usa_indice():
+    """La búsqueda por contraparte es prefijo anclado sobre searchKeys (multikey).
+
+    Se prohíbe COLLSCAN pero se permite SORT: con un rango en el campo líder
+    del índice el orden no se hereda, y el SORT con limit es top-k de memoria
+    acotada — aceptable para una acción de búsqueda. Un substring sin anclar
+    sería COLLSCAN siempre; ese es el caso que este test impide reintroducir.
+    """
+    query = build_list_query(**_full_filters({"counterparty": "comercial"}))
+    assert "searchKeys" in query, "counterparty debe buscar sobre searchKeys"
+
+    plan = await _explain(query, "createdAt", -1)
+    stages = _stages(plan["queryPlanner"]["winningPlan"])
+    assert "COLLSCAN" not in stages, f"búsqueda por contraparte escanea la colección: {stages}"
+    assert "IXSCAN" in stages
+
+
 @parametrize_queries
 async def test_listado_con_cursor_usa_indices(desc: str, partial: dict, sort: str):
     """La query de 'página siguiente' (comparación compuesta) también debe usar índice."""

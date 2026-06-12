@@ -163,7 +163,11 @@ paths:
           schema: { type: string, example: CLP, minLength: 3, maxLength: 3 }
         - name: counterparty
           in: query
-          description: Búsqueda por contraparte (origen o destino).
+          description: >
+            Búsqueda por prefijo (insensible a mayúsculas) sobre el nombre o el
+            número de cuenta de la contraparte, origen o destino. Es prefijo y
+            no substring por diseño: el prefijo usa índice; un substring a
+            volumen requeriría full-text search (descartado en v1).
           schema: { type: string }
         - name: dateFrom
           in: query

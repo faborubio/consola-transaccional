@@ -239,6 +239,16 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.3 → v1.4 (refuerzos post-Fase 1 — 2026-06-12)
+
+> Revisión deliberada al cierre de las fases de tubería: qué ajustar barato hoy
+> para no pagarlo caro en Fases 2-4.
+
+1. **`counterparty` pasa de substring a prefijo anclado** sobre `searchKeys` (nombres/cuentas normalizados en minúsculas, índice multikey). Un substring sin anclar es COLLSCAN sin remedio; el prefijo usa índice. Documentado en el contrato como decisión (full-text descartado en v1). Test propio en `test_indexes.py`.
+2. **Test de caminata de páginas** (`test_pagination_walk.py`): 50 documentos con `createdAt` y `amount` idénticos (peor caso del cursor), se caminan todas las páginas en 4 ordenamientos y se exige cada documento exactamente una vez. Cubre el "bug silencioso a volumen" con comportamiento real, no solo unit tests de forma.
+3. **Observabilidad mínima adelantada de Fase 6 a ahora:** middleware de correlation ID + logs JSON (stdlib) en ambos servicios. Razón: retrofitear logging en Fase 6 obligaría a tocar todo el código de Fases 2-4; ahora ese código nace logueando bien. El hito de Fase 6 (seguir un request de punta a punta) no cambia.
+4. **Makefile en la raíz** (`make help`): estandariza PATH de WSL, JAVA_HOME y los comandos del día a día; `DRIFT_PATHS` es el espejo local del candado de CI.
+
 ### v1.2 → v1.3 (implementación real de Fase 0 — 2026-06-12)
 
 1. **Angular 21, no 22:** ng-bootstrap aún no soporta Angular 22 (peer deps); 21 es la LTS estable que el plan pide. Revisar cuando ng-bootstrap publique soporte.

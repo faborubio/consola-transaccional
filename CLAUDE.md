@@ -34,17 +34,20 @@ fase cierra con su hito verificable. Estado actual: **Fase 0 cerrada y validada*
 
 ## Comandos
 
+Todo vive en el `Makefile` de la raíz (ya maneja el PATH de WSL y JAVA_HOME):
+
 ```bash
-docker compose -f infra/docker-compose.yml up -d --build   # stack completo :8080
-cd infra/seed && uv run seed.py --drop                     # 500k transacciones
-cd services/transactions && uv run pytest -q && uv run ruff check .
-cd frontend && npm start                                   # consola :4200
-cd frontend && npx ng lint && npx ng test && npx ng build
-# Candado anti-drift local (igual que CI):
-cd services/transactions && PYTHONPATH=. uv run python scripts/export_openapi.py > /tmp/txn.json
-uv run --script infra/ci/check_drift.py contracts/openapi.yaml /tmp/txn.json \
-  --match-path '^/(health$|transactions$|transactions/\{id\}(/audit)?$)'
+make help        # lista todos
+make up          # stack completo :8080
+make seed        # 500k transacciones (--drop)
+make test        # backend (ruff+pytest) y frontend (lint+vitest+build)
+make drift       # candado anti-drift local (igual que CI)
+make front       # dev server Angular :4200
+make generate-api  # regenera el cliente TS desde el contrato
 ```
+
+Al agregar endpoints, actualizar también `DRIFT_PATHS` en el Makefile (espejo
+del `--match-path` del CI).
 
 ## Registro de problemas resueltos (leer antes de depurar)
 
