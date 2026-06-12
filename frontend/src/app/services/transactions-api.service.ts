@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import {
+  AuditEntry,
   TransactionsService,
   Transaction,
   TransactionPage,
@@ -52,5 +53,9 @@ export class TransactionsApiService {
 
   get(id: string): Observable<Transaction> {
     return this.client.getTransaction(id);
+  }
+
+  audit(id: string): Observable<AuditEntry[]> {
+    return this.client.getTransactionAudit(id);
   }
 }

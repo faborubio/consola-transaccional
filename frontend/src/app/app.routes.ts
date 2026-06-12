@@ -13,5 +13,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/transactions/transaction-list').then((m) => m.TransactionList),
   },
+  {
+    path: 'transactions/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/transactions/transaction-detail').then((m) => m.TransactionDetail),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'transactions' },
 ];

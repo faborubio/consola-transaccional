@@ -103,7 +103,11 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   RBAC como dependency (`require_role`), rechazo a nivel de API testeado,
   rate limit estricto en login (429 verificado), login + interceptor con
   refresh automático compartido + guard en Angular; base `auth_db` separada
-- [ ] Fase 3 — Consola completa: todos los filtros, detalle, errores mapeados
+- [x] **Fase 3 — Consola completa:** barra de filtros íntegra en la URL
+  (estado, tipo, moneda, montos, fechas, contraparte con debounce, orden) —
+  deep-linkeable y con botón atrás; vista de detalle con historial de
+  auditoría; errores del API mapeados a mensajes de operador (toasts
+  ng-bootstrap); 16 tests de frontend
 - [ ] Fase 4 — Flujo transaccional: máquina de estados, maker-checker,
   idempotencia, bloqueo optimista, auditoría atómica
 - [ ] Fase 5 — Dashboard con `$facet` + cache Redis TTL

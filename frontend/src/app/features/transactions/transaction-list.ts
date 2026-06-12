@@ -1,18 +1,32 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, map, scan, startWith, switchMap, concatMap, tap } from 'rxjs';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
+import {
+  EMPTY,
+  Subject,
+  catchError,
+  concatMap,
+  map,
+  scan,
+  startWith,
+  switchMap,
+  tap,
+} from 'rxjs';
 
 import {
   TransactionStatus,
+  TransactionType,
   Transaction,
   TransactionPagePageInfo as PageInfo,
 } from '../../api-client';
 import {
-  TransactionFilters,
+  TransactionFilters as Filters,
   TransactionsApiService,
 } from '../../services/transactions-api.service';
 import { AuthApiService } from '../../services/auth-api.service';
+import { describeApiError } from '../../shared/api-error';
+import { ToastService } from '../../shared/toast.service';
+import { TransactionFilters } from './transaction-filters';
 
 interface ListVm {
   items: Transaction[];
@@ -21,9 +35,33 @@ interface ListVm {
 
 const EMPTY_VM: ListVm = { items: [], pageInfo: { hasNextPage: false } };
 
+/** URL → filtros de API. Pura y exportada: el contrato de la consola con su URL. */
+export function paramsToFilters(params: ParamMap): Filters {
+  const num = (name: string): number | undefined => {
+    const raw = params.get(name);
+    const value = raw === null || raw === '' ? NaN : Number(raw);
+    return Number.isFinite(value) ? value : undefined;
+  };
+  // Los date inputs entregan YYYY-MM-DD; el backend espera date-time:
+  // desde = inicio del día, hasta = fin del día (inclusivo).
+  const dateFrom = params.get('dateFrom');
+  const dateTo = params.get('dateTo');
+  return {
+    status: params.getAll('status') as TransactionStatus[],
+    type: (params.get('type') as TransactionType) || undefined,
+    currency: params.get('currency') || undefined,
+    counterparty: params.get('counterparty') || undefined,
+    minAmount: num('minAmount'),
+    maxAmount: num('maxAmount'),
+    dateFrom: dateFrom ? `${dateFrom}T00:00:00Z` : undefined,
+    dateTo: dateTo ? `${dateTo}T23:59:59.999Z` : undefined,
+    sort: params.get('sort') ?? '-createdAt',
+  };
+}
+
 @Component({
   selector: 'app-transaction-list',
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink, TransactionFilters],
   templateUrl: './transaction-list.html',
 })
 export class TransactionList {
@@ -31,26 +69,29 @@ export class TransactionList {
   private readonly router = inject(Router);
   private readonly api = inject(TransactionsApiService);
   private readonly authApi = inject(AuthApiService);
-
-  protected readonly statuses = Object.values(TransactionStatus);
+  private readonly toasts = inject(ToastService);
 
   // "Cargar más": el cursor es estado efímero de paginación, no va a la URL.
   private readonly loadMore$ = new Subject<string>();
   private nextCursor: string | null = null;
 
   /**
-   * Los filtros viven en la URL (deep-linkeables, botón atrás funciona).
-   * Cada cambio de filtros reinicia la acumulación; "cargar más" anexa páginas.
+   * Los filtros viven en la URL. Cada cambio reinicia la acumulación;
+   * "cargar más" anexa páginas. Errores → toast y la lista queda utilizable.
    */
   protected readonly vm$ = this.route.queryParamMap.pipe(
-    map((params) => ({
-      status: params.getAll('status') as TransactionStatus[],
-      sort: params.get('sort') ?? '-createdAt',
-    })),
-    switchMap((filters: TransactionFilters) =>
+    map(paramsToFilters),
+    switchMap((filters) =>
       this.loadMore$.pipe(
         startWith(undefined),
-        concatMap((cursor) => this.api.list(filters, cursor)),
+        concatMap((cursor) =>
+          this.api.list(filters, cursor).pipe(
+            catchError((err: unknown) => {
+              this.toasts.error(describeApiError(err));
+              return EMPTY;
+            }),
+          ),
+        ),
         tap((page) => (this.nextCursor = page.pageInfo.nextCursor ?? null)),
         scan(
           (acc: ListVm, page): ListVm => ({
@@ -59,23 +100,10 @@ export class TransactionList {
           }),
           EMPTY_VM,
         ),
+        startWith(null), // estado de carga al cambiar filtros
       ),
     ),
   );
-
-  protected toggleStatus(status: string, checked: boolean): void {
-    const current = this.route.snapshot.queryParamMap.getAll('status');
-    const updated = checked ? [...current, status] : current.filter((s) => s !== status);
-    this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { status: updated.length ? updated : null },
-      queryParamsHandling: 'merge',
-    });
-  }
-
-  protected isActive(status: string): boolean {
-    return this.route.snapshot.queryParamMap.getAll('status').includes(status);
-  }
 
   protected loadMore(): void {
     if (this.nextCursor) {

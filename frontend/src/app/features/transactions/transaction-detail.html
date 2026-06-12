@@ -1,0 +1,120 @@
+<div class="container py-4">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a [routerLink]="['/transactions']" queryParamsHandling="preserve">Transacciones</a>
+      </li>
+      <li class="breadcrumb-item active">Detalle</li>
+    </ol>
+  </nav>
+
+  @if (vm$ | async; as vm) {
+    @if (vm.error) {
+      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>{{ vm.error }}</span>
+        <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/transactions']">
+          Volver al listado
+        </a>
+      </div>
+    }
+
+    @if (vm.txn; as txn) {
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <h1 class="h4 mb-0"><code>{{ txn.id }}</code></h1>
+        <span class="badge fs-6" [class]="statusBadge(txn.status)">{{ txn.status }}</span>
+        <span class="text-secondary small">versión {{ txn.version }}</span>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-header py-2 small fw-semibold">Operación</div>
+            <div class="card-body py-2">
+              <dl class="row mb-0 small">
+                <dt class="col-5">Tipo</dt>
+                <dd class="col-7">{{ txn.type }}</dd>
+                <dt class="col-5">Monto</dt>
+                <dd class="col-7">{{ txn.amount | number: '1.0-2' }} {{ txn.currency }}</dd>
+                <dt class="col-5">Referencia</dt>
+                <dd class="col-7">{{ txn.reference ?? '—' }}</dd>
+                <dt class="col-5">Canal</dt>
+                <dd class="col-7">{{ txn.metadata?.['channel'] ?? '—' }}</dd>
+                <dt class="col-5">Creada</dt>
+                <dd class="col-7">{{ txn.createdAt | date: 'dd-MM-yyyy HH:mm:ss' }}</dd>
+                <dt class="col-5">Actualizada</dt>
+                <dd class="col-7">{{ (txn.updatedAt | date: 'dd-MM-yyyy HH:mm:ss') ?? '—' }}</dd>
+                <dt class="col-5">Iniciada por</dt>
+                <dd class="col-7">{{ txn.createdBy }}</dd>
+                <dt class="col-5">Revisada por</dt>
+                <dd class="col-7">{{ txn.reviewedBy ?? '—' }}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-header py-2 small fw-semibold">Contrapartes</div>
+            <div class="card-body py-2 small">
+              <p class="mb-1 text-secondary">Origen</p>
+              <p class="mb-2">
+                <strong>{{ txn.source.name }}</strong><br />
+                <code>{{ txn.source.accountId }}</code>
+              </p>
+              <p class="mb-1 text-secondary">Destino</p>
+              <p class="mb-0">
+                <strong>{{ txn.destination.name }}</strong><br />
+                <code>{{ txn.destination.accountId }}</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="h5 mb-3">Historial de auditoría</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Acción</th>
+              <th>Transición</th>
+              <th>Actor</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of vm.audit; track entry.id) {
+              <tr>
+                <td>{{ entry.at | date: 'dd-MM-yyyy HH:mm:ss' }}</td>
+                <td>{{ entry.action }}</td>
+                <td>
+                  <span class="badge" [class]="statusBadge(entry.fromStatus)">
+                    {{ entry.fromStatus }}
+                  </span>
+                  →
+                  <span class="badge" [class]="statusBadge(entry.toStatus)">
+                    {{ entry.toStatus }}
+                  </span>
+                </td>
+                <td>{{ entry.actor }}</td>
+                <td>{{ entry.reason ?? '—' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="text-center text-secondary py-3">
+                  Sin transiciones registradas — la auditoría se llena cuando un
+                  supervisor opera sobre la transacción.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+  }
+</div>

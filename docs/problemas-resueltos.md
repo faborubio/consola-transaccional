@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-06-12 — Fase 3
+
+### 19. `HttpTestingController` no puede flushear requests canceladas por forkJoin — RESUELTO
+- **Problema:** test del detalle: al simular 404 en la transacción, flushear la request de audit lanzaba `Cannot flush a cancelled request`.
+- **Causa:** `forkJoin` cancela las requests hermanas cuando una falla; la request queda en `match()` pero cancelada.
+- **Solución:** filtrar con `if (!pending.cancelled)` antes de flushear.
+- **Cómo evitarlo:** en tests de componentes con `forkJoin`/`switchMap`, asumir que habrá requests canceladas y filtrarlas.
+
+---
+
 ## 2026-06-12 — Fase 2
 
 ### 18. La clave privada montada (0600) no es legible por el usuario del contenedor — RESUELTO
