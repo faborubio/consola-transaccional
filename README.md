@@ -72,6 +72,7 @@ Verificación rápida: `curl http://localhost:8080/health` y
   servicio puede emitir tokens.
 
 Plan completo de fases: [docs/plan-consola-transaccional-sonda.md](docs/plan-consola-transaccional-sonda.md).
+Registro de problemas → causa → solución: [docs/problemas-resueltos.md](docs/problemas-resueltos.md).
 
 ## Estado
 

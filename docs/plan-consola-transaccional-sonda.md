@@ -239,6 +239,15 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.2 → v1.3 (implementación real de Fase 0 — 2026-06-12)
+
+1. **Angular 21, no 22:** ng-bootstrap aún no soporta Angular 22 (peer deps); 21 es la LTS estable que el plan pide. Revisar cuando ng-bootstrap publique soporte.
+2. **Candado anti-drift con normalizador propio, no oasdiff a secas:** el contrato es OpenAPI 3.0.3 (`nullable:`) y FastAPI emite 3.1 (`anyOf: [..., null]`); `infra/ci/check_drift.py` canonicaliza ambos estilos y compara estructura path por path. oasdiff directo daba falsos positivos en masa.
+3. **Ajustes al contrato durante Fase 0:** `nullable: true` en campos que el server serializa como null (`reference`, `updatedAt`, `metadata`, `details`); `422` agregado a `GET /transactions/{id}` y `/audit` (FastAPI lo emite siempre que hay parámetros); `required` en la respuesta de `/health`.
+4. **pymongo async en vez de Motor:** Motor está en mantenimiento; el cliente async oficial de PyMongo es el camino actual.
+5. **uv como gestor Python** (proyectos y scripts PEP 723: seed y check_drift autocontenidos).
+6. **Registro vivo de problemas-soluciones:** `docs/problemas-resueltos.md`, cargado en cada sesión vía `CLAUDE.md`, para que ningún problema resuelto se vuelva a investigar.
+
 ### v1 → v1.1
 1. Bloqueo optimista (`version` + `expectedVersion` + `409 STALE_VERSION`).
 2. Gateway Nginx/Traefik definido con rate limiting centralizado.
