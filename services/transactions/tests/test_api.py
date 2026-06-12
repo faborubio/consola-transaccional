@@ -8,8 +8,10 @@ from fastapi.testclient import TestClient
 from app.api.routes_transactions import get_service
 from app.domain.models import PageInfo, Transaction, TransactionPage
 from app.main import app
+from tests.conftest import auth_headers
 
 client = TestClient(app)
+HEADERS = auth_headers()
 
 
 def _sample_txn() -> Transaction:
@@ -41,7 +43,7 @@ def test_list_transactions_ok():
     )
     app.dependency_overrides[get_service] = lambda: mock
     try:
-        res = client.get("/transactions")
+        res = client.get("/transactions", headers=HEADERS)
         assert res.status_code == 200
         body = res.json()
         assert body["items"][0]["id"] == "txn_8f3a1c2e"
@@ -51,7 +53,7 @@ def test_list_transactions_ok():
 
 
 def test_validation_error_uses_contract_schema():
-    res = client.get("/transactions", params={"limit": 0})
+    res = client.get("/transactions", params={"limit": 0}, headers=HEADERS)
     assert res.status_code == 422
     body = res.json()
     assert body["code"] == "VALIDATION_ERROR"
@@ -64,7 +66,7 @@ def test_not_found_uses_contract_schema():
     mock.get_transaction.return_value = None
     app.dependency_overrides[get_service] = lambda: mock
     try:
-        res = client.get("/transactions/txn_inexistente")
+        res = client.get("/transactions/txn_inexistente", headers=HEADERS)
         assert res.status_code == 404
         assert res.json() == {"code": "NOT_FOUND", "message": "Transacción no encontrada."}
     finally:

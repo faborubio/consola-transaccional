@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
+from app.api.auth import current_user
 from app.api.errors import ApiError
 from app.domain.models import (
     AuditEntry,
@@ -15,7 +16,11 @@ from app.domain.models import (
 from app.services.pagination import InvalidCursorError, InvalidSortError
 from app.services.transactions_service import TransactionsService
 
-router = APIRouter(prefix="/transactions", tags=["transactions"])
+router = APIRouter(
+    prefix="/transactions",
+    tags=["transactions"],
+    dependencies=[Depends(current_user)],
+)
 
 ERROR_401 = {"model": Error, "description": "Token ausente, inválido o expirado."}
 ERROR_404 = {"model": Error, "description": "Recurso no encontrado."}

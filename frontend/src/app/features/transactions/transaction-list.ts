@@ -12,6 +12,7 @@ import {
   TransactionFilters,
   TransactionsApiService,
 } from '../../services/transactions-api.service';
+import { AuthApiService } from '../../services/auth-api.service';
 
 interface ListVm {
   items: Transaction[];
@@ -29,6 +30,7 @@ export class TransactionList {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(TransactionsApiService);
+  private readonly authApi = inject(AuthApiService);
 
   protected readonly statuses = Object.values(TransactionStatus);
 
@@ -79,6 +81,11 @@ export class TransactionList {
     if (this.nextCursor) {
       this.loadMore$.next(this.nextCursor);
     }
+  }
+
+  protected logout(): void {
+    this.authApi.logout();
+    void this.router.navigate(['/login']);
   }
 
   protected statusBadge(status: TransactionStatus): string {

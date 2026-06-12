@@ -38,6 +38,7 @@ Todo vive en el `Makefile` de la raíz (ya maneja el PATH de WSL y JAVA_HOME):
 
 ```bash
 make help        # lista todos
+make keys        # par RS256 en infra/keys (necesario antes del primer make up)
 make up          # stack completo :8080
 make seed        # 500k transacciones (--drop)
 make test        # backend (ruff+pytest) y frontend (lint+vitest+build)

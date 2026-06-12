@@ -55,6 +55,12 @@ def custom_openapi():
     }
     schema["security"] = [{"bearerAuth": []}]
     schema["paths"]["/health"]["get"]["security"] = []
+    # El HTTPBearer de la dependency agrega security por operación; la
+    # seguridad global bearerAuth ya lo cubre (como en el contrato).
+    for ops in schema["paths"].values():
+        for op in ops.values():
+            if op.get("security") == [{"HTTPBearer": []}]:
+                del op["security"]
     app.openapi_schema = schema
     return schema
 

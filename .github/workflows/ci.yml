@@ -25,8 +25,8 @@ jobs:
       - name: Tests (pytest)
         run: uv run pytest -q
 
-  indexes:
-    name: Índices (explain anti-COLLSCAN sobre Mongo real)
+  integracion:
+    name: Integración sobre Mongo real (índices, paginación, auth)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -39,11 +39,16 @@ jobs:
       - name: Seed reducido (los planes de query no necesitan 500k)
         working-directory: infra/seed
         run: uv run seed.py --count 20000 --drop
-      - name: Tests de índices
+      - name: Tests de índices y caminata de páginas
         working-directory: services/transactions
         run: |
           uv sync --frozen
-          uv run pytest tests/test_indexes.py -q
+          uv run pytest tests/test_indexes.py tests/test_pagination_walk.py -q
+      - name: Flujo de auth (login, rotación, reuso) contra Mongo
+        working-directory: services/auth
+        run: |
+          uv sync --frozen
+          uv run pytest -q
 
   anti-drift:
     name: Candado anti-drift (contrato vs runtime)
@@ -56,13 +61,22 @@ jobs:
         run: |
           uv sync --frozen
           PYTHONPATH=. uv run python scripts/export_openapi.py > /tmp/txn-openapi.json
-      - name: Diff contra contracts/openapi.yaml
-        # La superficie comparada crece por fase; /transitions entra en Fase 4
-        # y /auth/* en Fase 2 (con el runtime del servicio auth).
+      - name: Exportar OpenAPI runtime de auth
+        working-directory: services/auth
+        run: |
+          uv sync --frozen
+          PYTHONPATH=. uv run python scripts/export_openapi.py > /tmp/auth-openapi.json
+      - name: Diff transactions contra contracts/openapi.yaml
+        # La superficie comparada crece por fase; /transitions entra en Fase 4.
         run: |
           uv run --script infra/ci/check_drift.py \
             contracts/openapi.yaml /tmp/txn-openapi.json \
             --match-path '^/(health$|transactions$|transactions/\{id\}(/audit)?$)'
+      - name: Diff auth contra contracts/openapi.yaml
+        run: |
+          uv run --script infra/ci/check_drift.py \
+            contracts/openapi.yaml /tmp/auth-openapi.json \
+            --match-path '^/auth/'
 
   frontend:
     name: Frontend (Angular)
@@ -91,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [transactions]
+        service: [transactions, auth]
     steps:
       - uses: actions/checkout@v5
       - name: Build imagen ${{ matrix.service }}

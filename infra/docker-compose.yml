@@ -9,6 +9,7 @@ services:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - transactions
+      - auth
     networks: [backend]
 
   transactions:
@@ -16,12 +17,32 @@ services:
     environment:
       TXN_MONGO_URI: mongodb://mongo:27017/?replicaSet=rs0&directConnection=true
       TXN_MONGO_DB: transactions_db
+      # Solo la clave PÚBLICA: este servicio verifica tokens, no los emite.
+      TXN_JWT_PUBLIC_KEY_FILE: /keys/jwt-public.pem
+    volumes:
+      - ./keys/jwt-public.pem:/keys/jwt-public.pem:ro
     depends_on:
       mongo-init:
         condition: service_completed_successfully
     networks: [backend]
 
-  # auth se integra en Fase 2 (JWT RS256); el scaffold ya existe en /services/auth
+  auth:
+    build: ../services/auth
+    # La clave privada montada es 0600 del usuario host; el contenedor debe
+    # correr con ese uid para leerla (no se relajan los permisos de la clave).
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      AUTH_MONGO_URI: mongodb://mongo:27017/?replicaSet=rs0&directConnection=true
+      # Base separada de transactions: sin monolito distribuido.
+      AUTH_MONGO_DB: auth_db
+      AUTH_JWT_PRIVATE_KEY_FILE: /keys/jwt-private.pem
+      AUTH_JWT_PUBLIC_KEY_FILE: /keys/jwt-public.pem
+    volumes:
+      - ./keys:/keys:ro
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    networks: [backend]
 
   mongo:
     image: mongo:7

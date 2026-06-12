@@ -13,7 +13,7 @@ import { Role } from './role';
 export interface User { 
     id: string;
     username: string;
-    fullName?: string;
+    fullName?: string | null;
     roles: Array<Role>;
 }
 

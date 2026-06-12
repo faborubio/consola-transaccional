@@ -36,11 +36,14 @@ FastAPI emite en runtime contra el contrato — el build falla si divergen.
 Requisitos: Docker (con Compose), Node 20+, [uv](https://docs.astral.sh/uv/).
 
 ```bash
-make up      # gateway + transactions + Mongo (replica set) + Redis
+make keys    # par RS256 local (solo auth recibe la privada) — una vez
+make up      # gateway + transactions + auth + Mongo (replica set) + Redis
 make seed    # 500k transacciones con distribuciones realistas (~1 min)
 make front   # http://localhost:4200  (antes: cd frontend && npm ci)
 make help    # todos los comandos (tests, drift, regenerar cliente…)
 ```
+
+Usuarios demo (contraseña `Demo1234!`): `operador1`, `supervisor1`, `auditor1`.
 
 Verificación rápida: `curl http://localhost:8080/health` y
 `curl 'http://localhost:8080/transactions?limit=3'`.
@@ -67,8 +70,14 @@ Verificación rápida: `curl http://localhost:8080/health` y
 - **Búsqueda de contraparte por prefijo, no substring:** el prefijo anclado
   sobre un campo normalizado (`searchKeys`, índice multikey) usa índice; un
   substring a volumen sería COLLSCAN siempre (full-text descartado en v1).
-- **JWT RS256 (Fase 2):** solo `auth` posee la clave privada; ningún otro
-  servicio puede emitir tokens.
+- **JWT RS256:** solo `auth` posee la clave privada; `transactions` y el
+  gateway verifican con la pública — ningún otro servicio puede emitir tokens.
+- **Rotación de refresh tokens con detección de reuso:** cada refresh emite un
+  par nuevo y revoca el anterior atómicamente; un refresh ya usado que vuelve a
+  aparecer es señal de robo y quema la familia completa de la sesión.
+- **Tokens en localStorage:** tradeoff consciente de demo; un banco real usaría
+  cookies httpOnly tras un BFF. El interceptor comparte el refresh en vuelo
+  para que N requests con 401 simultáneos no quemen la familia.
 
 Plan completo de fases: [docs/plan-consola-transaccional-sonda.md](docs/plan-consola-transaccional-sonda.md).
 Registro de problemas → causa → solución: [docs/problemas-resueltos.md](docs/problemas-resueltos.md).
@@ -82,7 +91,11 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
 - [x] **Fase 1 — Volumen:** seed 500k en ~64s, índices ESR (+ monto sin filtro),
   test de `explain()` que falla con COLLSCAN o SORT en memoria — corre en CI
   contra un Mongo replica set real; listado filtrado responde en ~10ms
-- [ ] Fase 2 — Auth: JWT RS256, RBAC, rotación de refresh tokens
+- [x] **Fase 2 — Auth y desarrollo seguro:** JWT RS256 (solo `auth` firma),
+  argon2id, rotación de refresh con detección de reuso (familia revocada),
+  RBAC como dependency (`require_role`), rechazo a nivel de API testeado,
+  rate limit estricto en login (429 verificado), login + interceptor con
+  refresh automático compartido + guard en Angular; base `auth_db` separada
 - [ ] Fase 3 — Consola completa: todos los filtros, detalle, errores mapeados
 - [ ] Fase 4 — Flujo transaccional: máquina de estados, maker-checker,
   idempotencia, bloqueo optimista, auditoría atómica

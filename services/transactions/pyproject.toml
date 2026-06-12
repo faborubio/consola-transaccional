@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pymongo>=4.10",
     "pydantic-settings>=2.6",
+    "pyjwt[crypto]>=2.10",
 ]
 
 [dependency-groups]

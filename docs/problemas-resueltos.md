@@ -7,6 +7,26 @@
 
 ---
 
+## 2026-06-12 — Fase 2
+
+### 18. La clave privada montada (0600) no es legible por el usuario del contenedor — RESUELTO
+- **Problema:** `auth` arrancaba pero login daba 500: `PermissionError: /keys/jwt-private.pem`.
+- **Causa:** la clave es `0600` del usuario host (uid 1000); el contenedor corre como `appuser` (otro uid). El bind mount conserva uid/permisos del host.
+- **Solución:** `user: "${UID:-1000}:${GID:-1000}"` en el servicio `auth` del compose. NO relajar los permisos de la clave.
+- **Cómo evitarlo:** todo secreto montado como archivo necesita pensar uid del proceso del contenedor. En K8s (Fase 6) esto se resuelve con Secrets + fsGroup.
+
+### 17. PyJWT bloquea el ataque de confusión HS256/RS256 en el encode — RESUELTO (era el test)
+- **Problema:** el test que intentaba firmar HMAC usando la clave pública como secreto (ataque clásico contra validadores mal configurados) fallaba en `jwt.encode`, no en `decode`.
+- **Causa:** PyJWT se niega a usar un PEM asimétrico como secreto HMAC, precisamente para prevenir ese ataque.
+- **Solución:** el test correcto firma RS256 con OTRA clave RSA y verifica el rechazo. La defensa real del validador es `algorithms=["RS256"]` fijo en `jwt.decode` — nunca aceptar el `alg` del header.
+
+### 16. argon2 lanza `InvalidHashError` con hashes corruptos — RESUELTO
+- **Problema:** `verify_password` explotaba (500 potencial) si el hash guardado no era un hash argon2 válido.
+- **Causa:** `InvalidHashError` no hereda de `VerificationError` en argon2-cffi.
+- **Solución:** capturar `(VerifyMismatchError, VerificationError, InvalidHashError)` y devolver False.
+
+---
+
 ## 2026-06-12 — Fase 1
 
 ### 15. `docker compose wait` no sirve para one-shots ya salidos — RESUELTO

@@ -108,6 +108,8 @@ paths:
                 $ref: '#/components/schemas/TokenPair'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   /auth/me:
     get:
@@ -436,7 +438,7 @@ components:
       properties:
         id: { type: string, example: usr_01 }
         username: { type: string, example: operador1 }
-        fullName: { type: string, example: 'Ana Pérez' }
+        fullName: { type: string, nullable: true, example: 'Ana Pérez' }
         roles:
           type: array
           items: { $ref: '#/components/schemas/Role' }
