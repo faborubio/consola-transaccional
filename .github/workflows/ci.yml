@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [transactions, auth]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Instalar dependencias
+        run: uv sync --frozen
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Tests (pytest)
+        run: uv run pytest -q
+
+  anti-drift:
+    name: Candado anti-drift (contrato vs runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Exportar OpenAPI runtime de transactions
+        working-directory: services/transactions
+        run: |
+          uv sync --frozen
+          PYTHONPATH=. uv run python scripts/export_openapi.py > /tmp/txn-openapi.json
+      - name: Diff contra contracts/openapi.yaml
+        # La superficie comparada crece por fase; /transitions entra en Fase 4
+        # y /auth/* en Fase 2 (con el runtime del servicio auth).
+        run: |
+          uv run --script infra/ci/check_drift.py \
+            contracts/openapi.yaml /tmp/txn-openapi.json \
+            --match-path '^/(health$|transactions$|transactions/\{id\}(/audit)?$)'
+
+  frontend:
+    name: Frontend (Angular)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Lint (eslint)
+        run: npx ng lint
+      - name: Tests (vitest)
+        run: npx ng test
+      - name: Build producción
+        run: npx ng build
+
+  docker:
+    name: Build de imágenes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [transactions]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build imagen ${{ matrix.service }}
+        run: docker build services/${{ matrix.service }}

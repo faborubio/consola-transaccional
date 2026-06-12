@@ -1,0 +1,576 @@
+openapi: 3.0.3
+
+info:
+  title: Consola de Operaciones Transaccionales API
+  description: >
+    Contrato (fuente de verdad) de la consola de back-office bancario.
+    Diseño contract-first: el cliente Angular se genera desde este archivo y
+    FastAPI valida contra él. Cubre autenticación (JWT + RBAC) y el ciclo de vida
+    transaccional con máquina de estados, segregación de funciones (maker-checker),
+    idempotencia, bloqueo optimista y auditoría inmutable.
+  version: 1.1.0
+  contact:
+    name: Portafolio
+    url: https://example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local (Docker Compose / API gateway)
+  - url: https://api.example.com
+    description: Demo pública
+
+tags:
+  - name: auth
+    description: Autenticación y emisión de tokens.
+  - name: transactions
+    description: Consulta y operación sobre transacciones.
+  - name: health
+    description: Sondeos de salud.
+
+# Seguridad por defecto: todo requiere JWT salvo donde se anule con `security: []`.
+security:
+  - bearerAuth: []
+
+paths:
+
+  # ---------------------------------------------------------------------------
+  # HEALTH
+  # ---------------------------------------------------------------------------
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Servicio operativo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: transactions }
+
+  # ---------------------------------------------------------------------------
+  # AUTH
+  # ---------------------------------------------------------------------------
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Iniciar sesión y obtener tokens
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Autenticación exitosa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Renovar el access token con un refresh token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Nuevo par de tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Perfil del usuario autenticado
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Datos del usuario en sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ---------------------------------------------------------------------------
+  # TRANSACTIONS
+  # ---------------------------------------------------------------------------
+  /transactions:
+    get:
+      tags: [transactions]
+      summary: Listar transacciones (paginación y filtros server-side)
+      description: >
+        Listado paginado en servidor. Todos los filtros se resuelven en la base
+        con índices; el cliente nunca recibe el dataset completo. Soporta paginación
+        por cursor (recomendada a volumen) y ordenamiento.
+      operationId: listTransactions
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          description: Filtrar por uno o varios estados.
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/TransactionStatus'
+          style: form
+          explode: true
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/TransactionType'
+        - name: minAmount
+          in: query
+          schema: { type: number, format: double, minimum: 0 }
+        - name: maxAmount
+          in: query
+          schema: { type: number, format: double, minimum: 0 }
+        - name: currency
+          in: query
+          schema: { type: string, example: CLP, minLength: 3, maxLength: 3 }
+        - name: counterparty
+          in: query
+          description: Búsqueda por contraparte (origen o destino).
+          schema: { type: string }
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date-time }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date-time }
+        - name: sort
+          in: query
+          description: Campo y dirección, p. ej. `-createdAt` (desc) o `amount` (asc).
+          schema:
+            type: string
+            default: '-createdAt'
+            example: '-createdAt'
+      responses:
+        '200':
+          description: Página de resultados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /transactions/{id}:
+    get:
+      tags: [transactions]
+      summary: Detalle de una transacción
+      operationId: getTransaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '200':
+          description: Transacción encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /transactions/{id}/audit:
+    get:
+      tags: [transactions]
+      summary: Historial de auditoría (append-only) de una transacción
+      operationId: getTransactionAudit
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '200':
+          description: Entradas de auditoría en orden cronológico.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /transactions/{id}/transitions:
+    post:
+      tags: [transactions]
+      summary: Ejecutar una transición de estado (aprobar, rechazar, revisar, revertir)
+      description: >
+        Punto único de mutación del estado. La transición se valida contra la
+        máquina de estados; se aplica el control maker-checker (quien creó la
+        transacción no puede aprobarla); y es idempotente vía la cabecera
+        `Idempotency-Key`: reintentos con la misma clave no re-ejecutan la acción.
+        Requiere rol `supervisor`.
+      operationId: transitionTransaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionRequest'
+      responses:
+        '200':
+          description: Transición aplicada; se devuelve la transacción actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >
+            Prohibido. Rol insuficiente o violación de segregación de funciones
+            (el iniciador no puede aprobar su propia transacción).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                rolInsuficiente:
+                  value: { code: FORBIDDEN_ROLE, message: 'Se requiere rol supervisor.' }
+                segregacion:
+                  value: { code: SEGREGATION_OF_DUTIES, message: 'El iniciador no puede aprobar su propia transacción.' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >
+            Conflicto. Transición inválida según la máquina de estados, versión
+            desactualizada (bloqueo optimista), o la idempotency-key fue usada
+            con un payload distinto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                transicionInvalida:
+                  value: { code: INVALID_TRANSITION, message: 'No se puede pasar de REVERTIDA a APROBADA.' }
+                versionDesactualizada:
+                  value: { code: STALE_VERSION, message: 'La transacción fue modificada por otro usuario; recargue e intente de nuevo.' }
+                idempotenciaConflicto:
+                  value: { code: IDEMPOTENCY_CONFLICT, message: 'La clave de idempotencia ya fue usada con otro payload.' }
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+
+  # ---------------------------------------------------------------------------
+  # SECURITY
+  # ---------------------------------------------------------------------------
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Access token JWT. Enviar como: Authorization: Bearer <token>'
+
+  # ---------------------------------------------------------------------------
+  # PARAMETERS
+  # ---------------------------------------------------------------------------
+  parameters:
+    TransactionId:
+      name: id
+      in: path
+      required: true
+      description: Identificador de la transacción.
+      schema:
+        type: string
+        example: txn_8f3a1c2e
+
+    Cursor:
+      name: cursor
+      in: query
+      description: Cursor opaco de paginación (devuelto en `nextCursor`). Vacío = primera página.
+      schema:
+        type: string
+
+    Limit:
+      name: limit
+      in: query
+      description: Tamaño de página.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >
+        Clave única (UUID) por intento de operación. Reintentos con la misma clave
+        devuelven el resultado original sin re-ejecutar. Protege contra doble click
+        y reintentos de red.
+      schema:
+        type: string
+        format: uuid
+
+  # ---------------------------------------------------------------------------
+  # RESPONSES (reutilizables)
+  # ---------------------------------------------------------------------------
+  responses:
+    Unauthorized:
+      description: Token ausente, inválido o expirado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: UNAUTHORIZED, message: 'Token inválido o expirado.' }
+
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: NOT_FOUND, message: 'Transacción no encontrada.' }
+
+    ValidationError:
+      description: Error de validación de la entrada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: 'Parámetros inválidos.'
+            details:
+              - field: minAmount
+                issue: 'debe ser >= 0'
+
+    RateLimited:
+      description: Demasiadas solicitudes.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Segundos hasta el próximo intento permitido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { code: RATE_LIMITED, message: 'Límite de solicitudes excedido.' }
+
+  # ---------------------------------------------------------------------------
+  # SCHEMAS
+  # ---------------------------------------------------------------------------
+  schemas:
+
+    # --- Auth ---
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: operador1 }
+        password: { type: string, format: password, minLength: 8 }
+
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, example: Bearer }
+        expiresIn:
+          type: integer
+          description: Vida del access token en segundos.
+          example: 900
+
+    Role:
+      type: string
+      description: Rol del usuario para RBAC.
+      enum: [operador, supervisor, auditor]
+
+    User:
+      type: object
+      required: [id, username, roles]
+      properties:
+        id: { type: string, example: usr_01 }
+        username: { type: string, example: operador1 }
+        fullName: { type: string, example: 'Ana Pérez' }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/Role' }
+
+    # --- Transactions ---
+    TransactionStatus:
+      type: string
+      description: Estado dentro de la máquina de estados.
+      enum: [PENDIENTE, EN_REVISION, APROBADA, RECHAZADA, REVERTIDA]
+
+    TransactionType:
+      type: string
+      enum: [TRANSFERENCIA, PAGO, ABONO, REVERSA]
+
+    Party:
+      type: object
+      description: Contraparte (origen o destino) de la transacción.
+      required: [accountId, name]
+      properties:
+        accountId: { type: string, example: 'CL-001-22345678' }
+        name: { type: string, example: 'Comercializadora del Sur Ltda' }
+
+    Transaction:
+      type: object
+      required: [id, amount, currency, type, status, version, source, destination, createdAt, createdBy]
+      properties:
+        id: { type: string, example: txn_8f3a1c2e }
+        amount: { type: number, format: double, example: 1250000.00 }
+        currency: { type: string, example: CLP, minLength: 3, maxLength: 3 }
+        type: { $ref: '#/components/schemas/TransactionType' }
+        status: { $ref: '#/components/schemas/TransactionStatus' }
+        version:
+          type: integer
+          description: >
+            Versión del documento para bloqueo optimista; se incrementa en cada
+            transición. El cliente debe enviarla como `expectedVersion` al mutar.
+          example: 3
+        source: { $ref: '#/components/schemas/Party' }
+        destination: { $ref: '#/components/schemas/Party' }
+        reference:
+          type: string
+          nullable: true
+          description: Glosa o referencia libre.
+          example: 'Pago factura 4471'
+        createdBy:
+          type: string
+          description: Usuario que inició la transacción (maker).
+          example: usr_01
+        reviewedBy:
+          type: string
+          nullable: true
+          description: Usuario que ejecutó la última transición (checker).
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Campos extra específicos del dominio.
+
+    TransactionPage:
+      type: object
+      description: Página de resultados con paginación por cursor.
+      required: [items, pageInfo]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+        pageInfo:
+          type: object
+          required: [hasNextPage]
+          properties:
+            hasNextPage: { type: boolean }
+            nextCursor:
+              type: string
+              nullable: true
+              description: Cursor para la siguiente página; null si es la última.
+            totalEstimate:
+              type: integer
+              nullable: true
+              description: Conteo aproximado (evita un count costoso exacto a volumen).
+
+    TransitionAction:
+      type: string
+      description: Acción de transición solicitada.
+      enum: [APROBAR, RECHAZAR, ENVIAR_A_REVISION, REVERTIR]
+
+    TransitionRequest:
+      type: object
+      required: [action, expectedVersion]
+      properties:
+        action: { $ref: '#/components/schemas/TransitionAction' }
+        expectedVersion:
+          type: integer
+          description: >
+            Versión esperada de la transacción (bloqueo optimista). Si el documento
+            fue modificado entremedio por otro actor, la API responde 409 STALE_VERSION
+            y el cliente debe recargar y reintentar.
+          example: 3
+        reason:
+          type: string
+          description: Motivo (obligatorio para RECHAZAR y REVERTIR a nivel de lógica).
+          example: 'Inconsistencia en cuenta destino.'
+
+    AuditEntry:
+      type: object
+      description: Registro inmutable (append-only) de una transición.
+      required: [id, transactionId, action, fromStatus, toStatus, actor, at]
+      properties:
+        id: { type: string }
+        transactionId: { type: string }
+        action: { $ref: '#/components/schemas/TransitionAction' }
+        fromStatus: { $ref: '#/components/schemas/TransactionStatus' }
+        toStatus: { $ref: '#/components/schemas/TransactionStatus' }
+        actor:
+          type: string
+          description: Usuario que ejecutó la acción.
+        reason: { type: string, nullable: true }
+        at: { type: string, format: date-time }
+
+    Error:
+      type: object
+      description: Formato de error uniforme en toda la API.
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Código estable, legible por máquina.
+          example: INVALID_TRANSITION
+        message:
+          type: string
+          description: Mensaje legible por humanos.
+        details:
+          type: array
+          nullable: true
+          description: Detalles por campo (validación).
+          items:
+            type: object
+            properties:
+              field: { type: string, nullable: true }
+              issue: { type: string, nullable: true }

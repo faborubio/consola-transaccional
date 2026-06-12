@@ -1,0 +1,71 @@
+"""Tests de la capa HTTP con el servicio mockeado — no requieren Mongo."""
+
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock
+
+from fastapi.testclient import TestClient
+
+from app.api.routes_transactions import get_service
+from app.domain.models import PageInfo, Transaction, TransactionPage
+from app.main import app
+
+client = TestClient(app)
+
+
+def _sample_txn() -> Transaction:
+    return Transaction(
+        id="txn_8f3a1c2e",
+        amount=1250000.0,
+        currency="CLP",
+        type="PAGO",
+        status="PENDIENTE",
+        version=1,
+        source={"accountId": "CL-001-1", "name": "Origen SA"},
+        destination={"accountId": "CL-001-2", "name": "Destino SA"},
+        createdBy="usr_01",
+        createdAt=datetime(2026, 3, 1, tzinfo=UTC),
+    )
+
+
+def test_health():
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ok", "service": "transactions"}
+
+
+def test_list_transactions_ok():
+    mock = AsyncMock()
+    mock.list_transactions.return_value = TransactionPage(
+        items=[_sample_txn()],
+        pageInfo=PageInfo(hasNextPage=False, nextCursor=None, totalEstimate=1),
+    )
+    app.dependency_overrides[get_service] = lambda: mock
+    try:
+        res = client.get("/transactions")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["items"][0]["id"] == "txn_8f3a1c2e"
+        assert body["pageInfo"]["hasNextPage"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_validation_error_uses_contract_schema():
+    res = client.get("/transactions", params={"limit": 0})
+    assert res.status_code == 422
+    body = res.json()
+    assert body["code"] == "VALIDATION_ERROR"
+    assert body["message"]
+    assert any(d["field"] == "limit" for d in body["details"])
+
+
+def test_not_found_uses_contract_schema():
+    mock = AsyncMock()
+    mock.get_transaction.return_value = None
+    app.dependency_overrides[get_service] = lambda: mock
+    try:
+        res = client.get("/transactions/txn_inexistente")
+        assert res.status_code == 404
+        assert res.json() == {"code": "NOT_FOUND", "message": "Transacción no encontrada."}
+    finally:
+        app.dependency_overrides.clear()

@@ -1,0 +1,76 @@
+<div class="container-fluid py-4">
+  <h1 class="h3 mb-4">Consola de Operaciones — Transacciones</h1>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap gap-3 align-items-center">
+        <span class="fw-semibold small text-secondary">Estado:</span>
+        @for (s of statuses; track s) {
+          <div class="form-check form-check-inline mb-0">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              [id]="'st-' + s"
+              [checked]="isActive(s)"
+              (change)="toggleStatus(s, $any($event.target).checked)"
+            />
+            <label class="form-check-label small" [for]="'st-' + s">{{ s }}</label>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (vm$ | async; as vm) {
+    <div class="table-responsive">
+      <table class="table table-hover table-sm align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th class="text-end">Monto</th>
+            <th>Moneda</th>
+            <th>Origen</th>
+            <th>Destino</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (txn of vm.items; track txn.id) {
+            <tr>
+              <td><code>{{ txn.id }}</code></td>
+              <td>{{ txn.createdAt | date: 'dd-MM-yyyy HH:mm' }}</td>
+              <td>{{ txn.type }}</td>
+              <td class="text-end">{{ txn.amount | number: '1.0-2' }}</td>
+              <td>{{ txn.currency }}</td>
+              <td>{{ txn.source.name }}</td>
+              <td>{{ txn.destination.name }}</td>
+              <td><span class="badge" [class]="statusBadge(txn.status)">{{ txn.status }}</span></td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="8" class="text-center text-secondary py-4">Sin resultados.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+      @if (vm.pageInfo.hasNextPage) {
+        <button class="btn btn-outline-primary btn-sm" (click)="loadMore()">Cargar más</button>
+      }
+      <span class="small text-secondary">
+        {{ vm.items.length | number }} cargadas
+        @if (vm.pageInfo.totalEstimate !== null && vm.pageInfo.totalEstimate !== undefined) {
+          de ~{{ vm.pageInfo.totalEstimate | number }}
+        }
+      </span>
+    </div>
+  } @else {
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+  }
+</div>

@@ -1,0 +1,10 @@
+export * from './auth.service';
+import { AuthService } from './auth.service';
+export * from './auth.serviceInterface';
+export * from './health.service';
+import { HealthService } from './health.service';
+export * from './health.serviceInterface';
+export * from './transactions.service';
+import { TransactionsService } from './transactions.service';
+export * from './transactions.serviceInterface';
+export const APIS = [AuthService, HealthService, TransactionsService];

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+coverage/
+
+# Cliente generado (se regenera desde contracts/openapi.yaml)
+# Se versiona para que el repo compile sin Java; ver frontend/README.
+# frontend/src/app/api-client/
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Claves JWT locales (se generan con make keys)
+infra/keys/
+
+# IDE / SO
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+
+# Config local de Claude Code
+.claude/
