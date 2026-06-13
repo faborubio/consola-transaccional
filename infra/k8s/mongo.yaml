@@ -47,8 +47,10 @@ spec:
             periodSeconds: 10
             failureThreshold: 6
       volumes:
-        # emptyDir: en un cluster kind desechable, persistir entre reinicios es
-        # innecesario (un PVC añadiría fricción de StorageClass sin valor para el demo).
+        # emptyDir: cluster kind desechable. Trade-off honesto: si el pod mongo-0 se
+        # RECREA, pierde los datos y el RS queda sin inicializar (el Job mongo-init ya
+        # está Complete y no se re-ejecuta) → recuperar con `make k8s-down && k8s-up`.
+        # Para un demo es aceptable; producción usaría un PVC (volumeClaimTemplates).
         - name: data
           emptyDir: {}
 ---

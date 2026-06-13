@@ -240,6 +240,18 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.10 → v1.11 (auditoría post-Fase 6 — 2026-06-13)
+
+Verificaciones (rutas que la implementación no había ejercido) y hallazgos:
+
+1. **Flujo dev de Compose validado end-to-end** (solo se había probado k8s): `/api/health`, login y listado autenticado responden por el gateway de compose; y `/transactions` SIN `/api` cae al SPA (`text/html`), **no** al JSON del API — la colisión de rutas queda confirmada como resuelta en ambos entornos.
+2. **Rate-limit de login sobrevive el refactor a `/api`** (control de seguridad): 6×401 (burst) → 429 conforme al esquema `Error`. Se verificó porque el cambio de paths del gateway podía romperlo.
+3. **`up.sh` no reiniciaba `edge` en re-deploy** → con la tag `:local`+IfNotPresent, un `apply` tras reconstruir es no-op y el pod quedaba con el SPA viejo. **Corregido:** edge entra al `rollout restart`.
+4. **`emptyDir` de Mongo documentado con honestidad:** recrear el pod pierde datos *y* deja el RS sin inicializar (el Job `mongo-init` ya está Complete) → recuperar con `make k8s-down && k8s-up`. Para el demo es aceptable; producción usaría un PVC.
+5. **Test de regresión 405 en transactions** (simetría con auth): el handler de `StarletteHTTPException` emite el esquema `Error` y conserva `Allow` también ahí.
+
+**Limitaciones conocidas (deliberadas para un demo, no bugs):** el edge nginx corre como root (producción: imagen `nginx-unprivileged`); sin `NetworkPolicy` (todos los pods se ven); Schemathesis es no-determinista por diseño (un fuzzer con seed fija no fuzzea — los hallazgos ya están corregidos, un rojo intermitente sería una regresión real).
+
 ### v1.9 → v1.10 (Fase 6 — 2026-06-13)
 
 1. **Schemathesis con auth provider** (`@schemathesis.auth()`): login real + bearer en cada request, directo contra cada app (no por el gateway: el rate-limit ahogaría al fuzzer). Job de CI + `make schemathesis`. **Cazó dos bugs reales** que se corrigieron: cuerpo de petición ilegible que devolvía `400 {detail}` fuera del contrato (→ handler de `StarletteHTTPException` que normaliza a 422 conservando `Allow`), y un byte nulo en `counterparty` que entraba a una regex de Mongo y reventaba en 500 (→ validación en el borde a 422). Tests de regresión en ambos servicios.

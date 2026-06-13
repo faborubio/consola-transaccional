@@ -120,3 +120,12 @@ def test_counterparty_con_caracter_de_control_es_422():
     res = client.get("/transactions?counterparty=ab%00cd", headers=HEADERS)
     assert res.status_code == 422
     assert res.json()["code"] == "VALIDATION_ERROR"
+
+
+def test_metodo_no_permitido_conserva_allow_y_usa_esquema_del_contrato():
+    """El handler de StarletteHTTPException (Fase 6) emite el esquema Error también
+    para el 405 y conserva el header `Allow` (RFC 7231) — simetría con auth."""
+    res = client.request("DELETE", "/transactions")
+    assert res.status_code == 405
+    assert "allow" in {k.lower() for k in res.headers}
+    assert res.json()["code"] == "METHOD_NOT_ALLOWED"

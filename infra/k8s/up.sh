@@ -57,7 +57,11 @@ kubectl -n consola wait --for=condition=complete job/mongo-init --timeout=180s
 # en el lifespan. Si esos pods arrancaron antes de que el RS fuera PRIMARY, ese trabajo
 # se saltó silenciosamente (best-effort). Reiniciarlos ahora lo ejecuta contra la base
 # lista → sin esto, el login demo falla (usuarios inexistentes).
-kubectl -n consola rollout restart deploy/auth deploy/transactions
+#
+# El restart también refresca la imagen: como las tres usan la tag `:local` con
+# IfNotPresent, un `apply` tras reconstruir es no-op (la tag no cambia) y el pod
+# quedaría con la imagen vieja. Por eso edge entra aquí también (re-deploy de frontend).
+kubectl -n consola rollout restart deploy/auth deploy/transactions deploy/edge
 
 for d in redis auth transactions edge; do
   kubectl -n consola rollout status deploy/"$d" --timeout=180s
