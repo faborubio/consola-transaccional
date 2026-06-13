@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: transactions
+  labels: { app: transactions }
+spec:
+  selector: { app: transactions }
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transactions
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: transactions }
+  template:
+    metadata:
+      labels: { app: transactions }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: transactions
+          image: consola-transactions:local
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: app-config }
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: jwt-public
+              mountPath: /keys
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: jwt-public
+          secret:
+            secretName: jwt-keys
+            # Este servicio SOLO verifica tokens: monta la clave pública, nunca la
+            # privada. Solo `auth` puede emitir tokens.
+            items:
+              - key: jwt-public.pem
+                path: jwt-public.pem

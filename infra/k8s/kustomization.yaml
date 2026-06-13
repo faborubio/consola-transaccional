@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Todo el stack en el namespace `consola`. El Secret jwt-keys NO está aquí: lo crea
+# up.sh desde infra/keys para que las claves RS256 nunca entren a git.
+namespace: consola
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - mongo.yaml
+  - redis.yaml
+  - auth.yaml
+  - transactions.yaml
+  - edge.yaml

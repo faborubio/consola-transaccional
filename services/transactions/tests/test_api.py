@@ -111,3 +111,12 @@ def test_not_found_uses_contract_schema():
         assert res.json() == {"code": "NOT_FOUND", "message": "Transacción no encontrada."}
     finally:
         app.dependency_overrides.clear()
+
+
+def test_counterparty_con_caracter_de_control_es_422():
+    """Regresión (Schemathesis, Fase 6): un byte nulo en counterparty se metía en una
+    regex de Mongo y reventaba con BadValue → 500. Ahora se valida en el borde y
+    responde 422 con el esquema del contrato, sin tocar la base (servicio real)."""
+    res = client.get("/transactions?counterparty=ab%00cd", headers=HEADERS)
+    assert res.status_code == 422
+    assert res.json()["code"] == "VALIDATION_ERROR"

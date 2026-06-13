@@ -1,0 +1,13 @@
+# Contexto de build de la imagen edge (build context = raíz del repo).
+# Evita arrastrar artefactos pesados o secretos al daemon.
+**/node_modules
+**/dist
+**/.angular
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.git
+infra/keys
+**/.env
+**/.env.*

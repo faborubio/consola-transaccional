@@ -8,11 +8,13 @@ COPY app ./app
 
 FROM python:3.12-slim-bookworm
 WORKDIR /app
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# UID numérico fijo: con USER nombre, kubelet no puede verificar runAsNonRoot
+# ("non-numeric user") y rechaza el pod. Numérico → verificable.
+RUN groupadd -r -g 10001 appuser && useradd -r -u 10001 -g appuser appuser
 COPY --from=builder /app/.venv ./.venv
 COPY --from=builder /app/app ./app
 ENV PATH="/app/.venv/bin:$PATH"
-USER appuser
+USER 10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

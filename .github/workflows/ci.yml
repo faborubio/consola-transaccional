@@ -78,6 +78,18 @@ jobs:
             contracts/openapi.yaml /tmp/auth-openapi.json \
             --match-path '^/auth/'
 
+  schemathesis:
+    name: Schemathesis con autenticación (auth + transactions)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Fuzzing del contrato con hook de login
+        # El script levanta Mongo (replica set) + Redis con compose, corre ambos apps
+        # con uv, hace login real e inyecta el bearer en cada request generado. Sin el
+        # hook, todo endpoint protegido daría 401 y el paso sería un teatro verde.
+        run: bash infra/ci/run_schemathesis.sh
+
   frontend:
     name: Frontend (Angular)
     runs-on: ubuntu-latest
@@ -110,3 +122,12 @@ jobs:
       - uses: actions/checkout@v5
       - name: Build imagen ${{ matrix.service }}
         run: docker build services/${{ matrix.service }}
+
+  docker-edge:
+    name: Build de la imagen edge (frontend + gateway)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Contexto = raíz: necesita frontend/ y infra/gateway/nginx.conf.
+      - name: Build imagen edge
+        run: docker build -f frontend/Dockerfile -t consola-edge .

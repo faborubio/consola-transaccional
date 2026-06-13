@@ -7,6 +7,54 @@
 
 ---
 
+## 2026-06-13 — Fase 6
+
+### 35. `kind load docker-image` se cuelga con el containerd image store de Docker — RESUELTO
+- **Problema:** `make k8s-up` quedaba colgado >10 min cargando las imágenes al cluster; ninguna llegaba al nodo. El proceso atascado era `ctr --namespace=k8s.io images import --all-platforms`.
+- **Causa:** Docker usa el *containerd image store* (snapshotter v1) → las imágenes son índices OCI multi-plataforma. `kind load` pasa `--all-platforms` a `ctr import`, que intenta resolver plataformas no presentes y se cuelga. (`--provenance=false` quita las attestations pero no el comportamiento de `--all-platforms`.)
+- **Solución:** importar manualmente al containerd del nodo **sin** ese flag: `docker save <img> | docker exec -i <node> ctr -n k8s.io images import --digests --snapshotter=overlayfs -`. Importa solo la plataforma del host, al instante. Además `--provenance=false` en los `docker build` (imágenes de un manifiesto).
+- **Cómo evitarlo:** con el containerd image store activo, no usar `kind load docker-image` tal cual; import manual sin `--all-platforms` (o un registro local).
+
+### 34. `runAsNonRoot` rechaza una imagen con `USER` no numérico — RESUELTO
+- **Problema:** los pods de auth/transactions quedaban en `CreateContainerConfigError`: *"container has runAsNonRoot and image has non-numeric user (appuser), cannot verify user is non-root"*.
+- **Causa:** el Dockerfile declaraba `USER appuser` (nombre). Con `runAsNonRoot: true`, kubelet necesita un **UID numérico** para verificar en admisión que el proceso no es root; con un nombre no puede y rechaza el pod.
+- **Solución:** UID fijo numérico en el Dockerfile (`useradd -u 10001` + `USER 10001`). Así `runAsNonRoot` es verificable sin `runAsUser` ad-hoc en el manifiesto.
+- **Cómo evitarlo:** toda imagen pensada para correr con `runAsNonRoot` debe declarar `USER <uid numérico>`, no un nombre.
+
+### 33. El probe `mongosh ping` excede el timeout de 1s y mata Mongo en loop — RESUELTO
+- **Problema:** `mongo-0` nunca pasaba readiness; la liveness lo mataba y reiniciaba, impidiendo que el replica set se inicializara. Eventos: *"Liveness probe failed: command timed out after 1s"*.
+- **Causa:** `mongosh` (Node.js) tarda más de 1s solo en arrancar; el `timeoutSeconds` por defecto del probe es 1s → falso fallo perpetuo. (En compose el healthcheck tiene `timeout: 5s`; en k8s el default es más estricto.)
+- **Solución:** probes `tcpSocket: { port: 27017 }` — el puerto abierto basta como señal de vida/listo y no paga el arranque de mongosh. (Alternativa: subir `timeoutSeconds`.)
+- **Cómo evitarlo:** no usar comandos pesados (mongosh, clientes con runtime) en probes con timeout corto; preferir `tcpSocket` o un binario liviano.
+
+### 32. El bootstrap de usuarios demo corre antes de que el replica set sea PRIMARY → login falla — RESUELTO
+- **Problema:** en k8s, el pod de `auth` arranca antes de que `mongo-init` deje el RS en PRIMARY; su bootstrap (lifespan, una sola vez, best-effort) se salta silenciosamente → no hay usuarios → login 401.
+- **Solución:** (1) el Job `mongo-init` espera a `isWritablePrimary` antes de completar (espejo del init de compose); (2) `up.sh` hace `rollout restart` de auth y transactions **después** de que el Job termina, para que su lifespan (usuarios demo + índices) corra contra una base lista para escribir.
+- **Cómo evitarlo:** trabajo de arranque que escribe en la base no puede asumir que la base ya acepta escrituras; o se reintenta, o se orquesta el orden (init espera PRIMARY → reinicio de los apps).
+
+### 31. Mismo origen SPA+API: las rutas de cliente chocan con los paths del contrato — RESUELTO
+- **Problema:** al servir el SPA y el API bajo el mismo origen en el gateway, las rutas de Angular (`/transactions`, `/transactions/:id`, `/activity`, `/dashboard`) **colisionan** con los paths del API (`/transactions`, `/activity`). Navegar o recargar `/transactions` devolvía el JSON del API en vez del SPA: `GET /transactions` es legítimamente ambas cosas y no se desambigua por path.
+- **Solución:** el API se sirve bajo un prefijo **`/api`** solo en el edge, con `rewrite ^/api/(.*)$ /$1 break` antes de proxear; el SPA es dueño de la raíz (`try_files … /index.html`). `BASE_PATH='/api'` en el cliente; en dev, `proxy.conf.json` reenvía `/api` al gateway. **El backend y el contrato no cambian** (siguen en `/transactions`) → anti-drift y cliente generado intactos.
+- **Cómo evitarlo:** SPA + API mismo origen ⇒ separar namespaces. No montar el API en la raíz si el router del SPA usa esos mismos segmentos; un prefijo de gateway (con rewrite) lo resuelve sin tocar el contrato.
+
+### 30. `counterparty` con byte nulo entra a una regex de Mongo y revienta en 500 — RESUELTO (lo cazó Schemathesis)
+- **Problema:** el filtro `counterparty` se usa como prefijo de un `$regex` sobre `searchKeys`. Un byte nulo (`\x00`) en el valor hace que el motor PCRE de Mongo lance `OperationFailure: Regular expression cannot contain an embedded null byte` (BadValue) → excepción no manejada → **500**. La fase stateful de Schemathesis lo encontró.
+- **Causa:** `re.escape` mitiga la inyección de regex (ya estaba), pero **no elimina el byte nulo**: el carácter queda en el patrón y PCRE lo rechaza. Input malformado llegaba hasta la base.
+- **Solución:** validación en el borde (servicio) — si `counterparty` trae caracteres de control (incluido `\x00`), `InvalidFilterError` → **422** con el esquema del contrato, antes de tocar Mongo. Test de regresión en `test_api.py`.
+- **Cómo evitarlo:** todo input de usuario que termine en una regex de base de datos debe (1) escaparse —`re.escape`— y (2) rechazar caracteres de control. Escapar no basta: el byte nulo no es escapable para PCRE.
+
+### 29. Cuerpo de petición ilegible → 400 `{"detail"}` fuera del esquema del contrato — RESUELTO (lo cazó Schemathesis)
+- **Problema:** un body de bytes no decodificables (no-UTF8) hace que FastAPI lance un `HTTPException(400, "There was an error parsing the body")` crudo, que cae al handler por defecto de Starlette → `{"detail": ...}` con status **400 no documentado**: rompe el esquema `code/message` (hermano del hallazgo #25 de Fase 4).
+- **Solución:** handler de `StarletteHTTPException` en ambos servicios → emite el esquema `Error`. El cuerpo ilegible se normaliza a **422** (es un error de validación, igual que un JSON mal formado; 422 ya está documentado) y no agrega superficie al contrato. **Cuidado:** conservar `exc.headers` — Starlette adjunta `Allow` al 405 (lo exige RFC 7231); reescribir el response sin copiarlo lo rompía (lo detectó el check `unsupported_method` de Schemathesis).
+- **Cómo evitarlo:** el scaffold de errores de cualquier servicio necesita, además del handler de `Exception` y `RequestValidationError`, uno de `StarletteHTTPException` (cubre 400 de parseo, 404 de ruta, 405 de método) que preserve headers.
+
+### 28. Schemathesis sin hook de auth = 401 en todo: un paso de CI que no prueba nada — RESUELTO
+- **Problema:** Schemathesis contra endpoints protegidos recibe 401 en cada request; el paso queda "verde" sin haber ejercido la lógica real (teatro verde).
+- **Solución:** auth provider nativo (`@schemathesis.auth()`, `infra/ci/schemathesis_hooks.py`) que hace **login real** contra `auth` una vez (con refresh) e inyecta el bearer en cada request generado. Corre **directo** contra cada app (no por el gateway: su rate-limit 20r/s ahogaría al fuzzer con 429). Config en `schemathesis.toml`: 422 es respuesta válida a "datos positivos" (validación de dominio más rica que el schema) y se suprime `filter_too_much` en operaciones sin parámetros. Inmediatamente cazó los hallazgos #29 y #30.
+- **Cómo evitarlo:** un fuzzer de contrato sin autenticación es decorativo. El hook de login es parte del setup de Schemathesis, no un extra.
+
+---
+
 ## 2026-06-13 — Auditoría Fase 5
 
 ### 27. Cache stampede: al expirar el TTL, N cargas simultáneas recomputan todas — RESUELTO

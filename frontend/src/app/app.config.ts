@@ -14,7 +14,9 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(withInterceptors([correlationInterceptor, authInterceptor])),
     provideCharts(withDefaultRegisterables()),
-    // Única puerta de entrada: el gateway (Fase 6 lo parametriza por entorno).
-    { provide: BASE_PATH, useValue: 'http://localhost:8080' },
+    // Mismo origen: el API cuelga de /api en el gateway (que reescribe a los paths
+    // reales del contrato). Relativo a propósito — sin URL ni puerto hardcodeado y
+    // sin CORS. En dev, proxy.conf.json reenvía /api al gateway (ver angular.json).
+    { provide: BASE_PATH, useValue: '/api' },
   ],
 };

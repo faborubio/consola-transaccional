@@ -1,0 +1,42 @@
+# Edge: única puerta de entrada. Sirve el SPA y proxea /api a los Services internos
+# (mismos nombres de upstream que en compose: auth / transactions).
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge
+  labels: { app: edge }
+spec:
+  selector: { app: edge }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: edge }
+  template:
+    metadata:
+      labels: { app: edge }
+    spec:
+      containers:
+        - name: edge
+          image: consola-edge:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /, port: 8080 } # el SPA (index.html) responde 200
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "20m", memory: "32Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }

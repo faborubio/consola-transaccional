@@ -240,6 +240,14 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.9 → v1.10 (Fase 6 — 2026-06-13)
+
+1. **Schemathesis con auth provider** (`@schemathesis.auth()`): login real + bearer en cada request, directo contra cada app (no por el gateway: el rate-limit ahogaría al fuzzer). Job de CI + `make schemathesis`. **Cazó dos bugs reales** que se corrigieron: cuerpo de petición ilegible que devolvía `400 {detail}` fuera del contrato (→ handler de `StarletteHTTPException` que normaliza a 422 conservando `Allow`), y un byte nulo en `counterparty` que entraba a una regex de Mongo y reventaba en 500 (→ validación en el borde a 422). Tests de regresión en ambos servicios.
+2. **Mismo origen vía gateway, API bajo `/api`:** el edge sirve el SPA y proxea `/api/*` reescribiéndolo a los paths del contrato. Resuelve la colisión entre las rutas de cliente de Angular y los paths del API sin tocar el contrato (anti-drift intacto). Desaparece CORS; `BASE_PATH='/api'` y `proxy.conf.json` en dev.
+3. **Imagen edge (frontend + gateway):** `frontend/Dockerfile` multi-stage compila el SPA y lo sirve con el mismo nginx del gateway; solo en k8s (el compose mantiene el gateway liviano para no reconstruir Angular en cada `make up`).
+4. **Kubernetes (`infra/k8s`, kind/minikube):** StatefulSet de Mongo (replica set 1 nodo) + Job de init que espera a PRIMARY, Redis, auth, transactions y edge, con `ConfigMap`, probes de readiness/liveness y las claves RS256 como `Secret` montado (fuera de git). `make k8s-tools/up/down`. Verificado en vivo: `kubectl apply` levanta el stack (todos los pods 1/1), un correlation ID atraviesa edge→auth→transactions en los logs, y `auth_db`/`transactions_db` quedan separadas. Cuatro gotchas de k8s resueltos en el camino (problemas-resueltos #32–#35): `kind load` colgándose con el containerd store, `runAsNonRoot` y el `USER` no numérico, el probe `mongosh` excediendo 1s, y el bootstrap corriendo antes de PRIMARY.
+5. **Observación de diseño:** el problema de permisos de la clave montada (#18, compose 0600) **no aplica** en k8s — un Secret montado lo lee el usuario no-root sin `user:` ad-hoc.
+
 ### v1.8 → v1.9 (auditoría post-Fase 5 — 2026-06-13)
 
 1. **Single-flight en el cache del dashboard** (`SET NX`): evita la estampida de recomputaciones cuando el TTL expira con varios operadores en línea. Test de concurrencia con `asyncio.gather`.

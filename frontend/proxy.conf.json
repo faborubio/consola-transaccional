@@ -1,0 +1,8 @@
+{
+  "//": "Dev (ng serve :4200): reenvía /api al gateway (compose, :8080), que reescribe /api/* a los paths reales del contrato. Mismo origen que en prod (imagen edge / k8s), sin CORS.",
+  "/api": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true
+  }
+}

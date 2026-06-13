@@ -2,7 +2,8 @@
 
 Back-office bancario de portafolio (objetivo: oferta Desarrollador Angular en SONDA).
 Plan por fases: `docs/plan-consola-transaccional-sonda.md` — seguirlo en orden; cada
-fase cierra con su hito verificable. Estado actual: **Fase 0 cerrada y validada**.
+fase cierra con su hito verificable. Estado actual: **Fase 6 cerrada y validada**
+(k8s sobre kind, Schemathesis autenticado en CI, correlation ID end-to-end).
 
 ## Reglas duras del proyecto
 
@@ -21,6 +22,10 @@ fase cierra con su hito verificable. Estado actual: **Fase 0 cerrada y validada*
 - Angular queda en **v21** hasta que ng-bootstrap soporte v22.
 - Frontend: filtros en la URL (query params), `async pipe`/`takeUntilDestroyed`,
   sin `.subscribe()` sueltos, paginación clásica (no virtual scroll).
+- **Mismo origen:** el API cuelga de `/api` en el gateway (que lo reescribe a los
+  paths del contrato); `BASE_PATH='/api'` en el cliente, sin CORS. En dev,
+  `frontend/proxy.conf.json` reenvía `/api` al gateway — `make front` lo necesita.
+  El contrato y el backend NO usan el prefijo (siguen en `/transactions`, etc.).
 
 ## Entorno (WSL2 Ubuntu 24.04)
 
@@ -43,8 +48,12 @@ make up          # stack completo :8080
 make seed        # 500k transacciones (--drop)
 make test        # backend (ruff+pytest) y frontend (lint+vitest+build)
 make drift       # candado anti-drift local (igual que CI)
-make front       # dev server Angular :4200
+make schemathesis  # fuzzing del contrato autenticado (auth + transactions)
+make front       # dev server Angular :4200 (usa proxy.conf.json → /api al gateway)
 make generate-api  # regenera el cliente TS desde el contrato
+make k8s-tools   # instala kind + kubectl en ~/.local/bin (sin sudo)
+make k8s-up      # despliega el stack completo en kind (kubectl apply)
+make k8s-down    # borra el cluster kind
 ```
 
 Al agregar endpoints, actualizar también `DRIFT_PATHS` en el Makefile (espejo

@@ -12,18 +12,23 @@ optimista.
 ## Arquitectura
 
 ```
-Angular 21 (Bootstrap, cliente TS generado del contrato)
-        │
+Navegador
+        │  (mismo origen: el SPA y el API salen del gateway, sin CORS)
         ▼
-Gateway Nginx :8080  ──  CORS, rate limiting, única puerta de entrada
-        │
+Edge / Gateway Nginx :8080  ──  sirve el SPA Angular 21 en /  ·  rate limiting
+        │                       proxea /api/* → servicios (reescribe a los paths
+        │                       del contrato)  ·  única puerta de entrada
         ├──► transactions (FastAPI)  ──► MongoDB (replica set 1 nodo)
         │         router → servicio → repositorio        │
         │                                                └─ auditoría append-only
-        ├──► auth (FastAPI, Fase 2: JWT RS256, RBAC)
+        ├──► auth (FastAPI: JWT RS256, RBAC)  ──► MongoDB (base auth_db separada)
         │
         └──  Redis: idempotencia (SET NX), rate limit, cache de agregados
 ```
+
+Empaquetado en dos formas: **Docker Compose** (dev) y **Kubernetes** (`infra/k8s`,
+sobre kind/minikube) — `kubectl apply` levanta el stack completo con probes y las
+claves RS256 como Secret fuera del código.
 
 **Contract-first:** [contracts/openapi.yaml](contracts/openapi.yaml) es la
 fuente de verdad. El cliente Angular se **genera** desde el contrato
@@ -45,8 +50,28 @@ make help    # todos los comandos (tests, drift, regenerar cliente…)
 
 Usuarios demo (contraseña `Demo1234!`): `operador1`, `supervisor1`, `auditor1`.
 
-Verificación rápida: `curl http://localhost:8080/health` y
-`curl 'http://localhost:8080/transactions?limit=3'`.
+Verificación rápida (el API cuelga de `/api` en el gateway):
+`curl http://localhost:8080/api/health` y
+`curl 'http://localhost:8080/api/transactions?limit=3'`.
+
+### Sobre Kubernetes (kind)
+
+```bash
+make k8s-tools   # instala kind + kubectl en ~/.local/bin (sin sudo) — una vez
+make k8s-up      # construye imágenes, crea el cluster y despliega el stack
+kubectl -n consola port-forward svc/edge 8080:8080   # consola en :8080
+make k8s-down    # borra el cluster
+```
+
+### Fuzzing del contrato (Schemathesis)
+
+```bash
+make schemathesis   # property-based testing autenticado contra auth + transactions
+```
+
+Hace login real e inyecta el bearer en cada request generado (sin el hook sería un
+paso verde que solo recibe 401). Cazó dos bugs reales en Fase 6 — ver
+[problemas-resueltos](docs/problemas-resueltos.md) #29 y #30.
 
 ## Decisiones de diseño (resumen — se expande en Fase 7)
 
@@ -89,6 +114,22 @@ Verificación rápida: `curl http://localhost:8080/health` y
   a todos los servicios para cubrir solo esa ventana — costo desproporcionado
   aquí. Si el requisito fuera revocación inmediata (v2), este es el punto de
   entrada documentado.
+
+- **SPA + API en el mismo origen tras el gateway (sin CORS):** el edge sirve el SPA
+  y proxea el API bajo `/api` (reescrito a los paths del contrato). Las rutas de
+  cliente de Angular chocaban con los paths del API en la raíz; el prefijo `/api` lo
+  resuelve **sin tocar el contrato** — el backend sigue en `/transactions` y el
+  candado anti-drift no se entera.
+- **Schemathesis autenticado, no decorativo:** un fuzzer de contrato que recibe 401
+  en todo no prueba nada. Un auth provider hace login real e inyecta el bearer en cada
+  request; corre directo contra cada app (el rate-limit del gateway ahogaría al
+  fuzzer). Encontró dos respuestas fuera del esquema del contrato (cuerpo ilegible,
+  byte nulo en un filtro→regex) que ya se corrigieron.
+- **Bases Mongo separadas por servicio:** `auth_db` y `transactions_db` — tres
+  servicios sobre una instancia compartida es el anti-patrón de monolito distribuido.
+- **Kubernetes con secrets fuera del código:** `kubectl apply` levanta el stack
+  (StatefulSet de Mongo con init de replica set, probes de readiness/liveness); las
+  claves RS256 se inyectan como Secret montado, nunca en git ni en una imagen.
 
 ### Qué cambiaría a escala real (lectura honesta)
 
@@ -139,5 +180,11 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   cache Redis (TTL 30s, header `X-Cache`: MISS 0.9s → HIT 0.07s). **Medimos y
   descartamos `$facet`**: 69s vs 1.2s con `$group` separados sobre 500k (ver
   decisión abajo). "Mi actividad": acciones por actor leídas de la auditoría
-- [ ] Fase 6 — K8s, Schemathesis con auth, logs estructurados + correlation ID
+- [x] **Fase 6 — DevOps y observabilidad:** Schemathesis autenticado en CI
+  (auth provider con login real; cazó y se corrigieron 2 respuestas fuera del
+  esquema del contrato); SPA + API en el mismo origen tras el gateway (API bajo
+  `/api`, sin CORS); **Kubernetes** sobre kind (`kubectl apply` levanta el stack:
+  StatefulSet de Mongo con init de replica set, probes, claves RS256 como Secret);
+  un correlation ID atraviesa edge→auth→transactions en los logs; bases `auth_db` y
+  `transactions_db` separadas — verificado en vivo
 - [ ] Fase 7 — Playwright, k6, narrativa completa

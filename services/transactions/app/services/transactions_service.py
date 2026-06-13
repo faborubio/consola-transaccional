@@ -24,6 +24,14 @@ class TransactionsService:
         date_from: datetime | None,
         date_to: datetime | None,
     ) -> TransactionPage:
+        # `counterparty` se usa como prefijo de una regex Mongo (build_list_query).
+        # Un carácter de control (sobre todo el byte nulo) hace que el motor PCRE de
+        # Mongo lance BadValue → 500. Un nombre/cuenta nunca los contiene: se rechaza
+        # en el borde con 422 (ya documentado), no se deja escapar a la base.
+        if counterparty and any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in counterparty):
+            raise pagination.InvalidFilterError(
+                "El filtro de contraparte contiene caracteres no válidos."
+            )
         sort_field, direction = pagination.parse_sort(sort)
         query = build_list_query(
             status=status,

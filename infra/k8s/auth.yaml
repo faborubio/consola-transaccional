@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels: { app: auth }
+spec:
+  selector: { app: auth }
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: auth }
+  template:
+    metadata:
+      labels: { app: auth }
+    spec:
+      securityContext:
+        runAsNonRoot: true # la imagen corre como appuser; el Secret 0644 es legible
+      containers:
+        - name: auth
+          image: consola-auth:local
+          imagePullPolicy: IfNotPresent # se carga al cluster con `kind load`
+          envFrom:
+            - configMapRef: { name: app-config }
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: jwt-keys
+              mountPath: /keys
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+      volumes:
+        - name: jwt-keys
+          secret:
+            secretName: jwt-keys # creado por up.sh desde infra/keys (no en git)

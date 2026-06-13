@@ -16,7 +16,11 @@ from app.domain.models import (
     TransactionType,
     TransitionRequest,
 )
-from app.services.pagination import InvalidCursorError, InvalidSortError
+from app.services.pagination import (
+    InvalidCursorError,
+    InvalidFilterError,
+    InvalidSortError,
+)
 from app.services.transactions_service import TransactionsService
 from app.services.transitions_service import TransitionError, TransitionsService
 
@@ -76,7 +80,7 @@ async def list_transactions(
             date_from=dateFrom,
             date_to=dateTo,
         )
-    except (InvalidCursorError, InvalidSortError) as exc:
+    except (InvalidCursorError, InvalidSortError, InvalidFilterError) as exc:
         raise ApiError(422, "VALIDATION_ERROR", str(exc)) from exc
     except ExecutionTimeout as exc:
         raise ApiError(

@@ -4,7 +4,9 @@ export PATH := $(HOME)/.local/bin:$(HOME)/.nvm/versions/node/v24.16.0/bin:$(PATH
 COMPOSE := docker compose -f infra/docker-compose.yml
 DRIFT_PATHS := ^/(health$$|transactions$$|transactions/\{id\}(/audit|/transitions)?$$)|^/metrics/dashboard$$|^/activity$$
 
-.PHONY: help up down seed test test-backend test-frontend lint drift front generate-api keys
+KIND_CLUSTER := consola
+.PHONY: help up down seed test test-backend test-frontend lint drift front generate-api keys \
+        schemathesis k8s-tools k8s-up k8s-down
 
 keys: ## Genera el par RS256 local en infra/keys (fuera de git)
 	mkdir -p infra/keys
@@ -44,3 +46,15 @@ front: ## Dev server de Angular en :4200
 
 generate-api: ## Regenera el cliente TS desde contracts/openapi.yaml (requiere JRE local)
 	cd frontend && JAVA_HOME=$$(ls -d $(HOME)/.local/java/jdk*) PATH=$$JAVA_HOME/bin:$$PATH npm run generate:api
+
+schemathesis: ## Fuzzing del contrato autenticado (auth + transactions); igual que CI
+	bash infra/ci/run_schemathesis.sh
+
+k8s-tools: ## Instala kind y kubectl en ~/.local/bin (sin sudo, usan el Docker local)
+	bash infra/k8s/install-tools.sh
+
+k8s-up: ## Crea el cluster kind y despliega el stack completo (kubectl apply)
+	bash infra/k8s/up.sh
+
+k8s-down: ## Borra el cluster kind
+	kind delete cluster --name $(KIND_CLUSTER)

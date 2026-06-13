@@ -1,0 +1,99 @@
+# Mongo en replica set de un nodo (rs0). Obligatorio para las transacciones
+# multi-documento de Fase 4 — standalone las rechaza en runtime.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  labels: { app: mongo }
+spec:
+  clusterIP: None # headless: da el DNS estable mongo-0.mongo necesario para el RS
+  selector: { app: mongo }
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels: { app: mongo }
+  template:
+    metadata:
+      labels: { app: mongo }
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:7
+          args: ["--replSet", "rs0", "--bind_ip_all"]
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+          # tcpSocket, no `mongosh ping`: mongosh (Node.js) tarda más que el timeout de
+          # 1s del probe en arrancar → daba falsos fallos y la liveness mataba el pod en
+          # loop, impidiendo que el replica set se inicializara. El puerto abierto basta.
+          readinessProbe:
+            tcpSocket: { port: 27017 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 27017 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+      volumes:
+        # emptyDir: en un cluster kind desechable, persistir entre reinicios es
+        # innecesario (un PVC añadiría fricción de StorageClass sin valor para el demo).
+        - name: data
+          emptyDir: {}
+---
+# Inicia el replica set una vez. El initContainer espera a que mongod responda antes
+# de ejecutar rs.initiate — sin esto el Job corre antes de tiempo y falla.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-init
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-mongo
+          image: mongo:7
+          command:
+            - bash
+            - -c
+            - |
+              until mongosh --host mongo-0.mongo:27017 --quiet --eval 'db.adminCommand("ping").ok'; do
+                echo "esperando a mongod..."; sleep 2
+              done
+      containers:
+        - name: init
+          image: mongo:7
+          command:
+            - mongosh
+            - --host
+            - mongo-0.mongo:27017
+            - --eval
+            - |
+              try {
+                rs.status();
+                print("Replica set ya iniciado.");
+              } catch (e) {
+                rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo-0.mongo:27017" }] });
+                print("Replica set rs0 iniciado.");
+              }
+              // Esperar a PRIMARY: recién ahí hay escrituras (bootstrap de usuarios,
+              // índices). Que el Job termine == base lista para escribir.
+              let n = 0;
+              while (n < 30) {
+                if (db.hello().isWritablePrimary) { print("Nodo PRIMARY."); quit(0); }
+                sleep(1000); n++;
+              }
+              print("ERROR: el nodo no llegó a PRIMARY en 30s."); quit(1);

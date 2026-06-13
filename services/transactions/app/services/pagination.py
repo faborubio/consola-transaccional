@@ -21,6 +21,10 @@ class InvalidSortError(ValueError):
     pass
 
 
+class InvalidFilterError(ValueError):
+    pass
+
+
 def parse_sort(sort: str) -> tuple[str, int]:
     """'-createdAt' → ('createdAt', -1); 'amount' → ('amount', 1)."""
     direction = -1 if sort.startswith("-") else 1

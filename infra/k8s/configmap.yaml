@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  # DNS estable del StatefulSet de un nodo: pod-0 vía el Service headless `mongo`.
+  # Si este host no coincide con el del rs.initiate, los apps no conectan en runtime.
+  AUTH_MONGO_URI: "mongodb://mongo-0.mongo:27017/?replicaSet=rs0&directConnection=true"
+  TXN_MONGO_URI: "mongodb://mongo-0.mongo:27017/?replicaSet=rs0&directConnection=true"
+  # Bases separadas por servicio: sin monolito distribuido (plan, Fase 6).
+  AUTH_MONGO_DB: "auth_db"
+  TXN_MONGO_DB: "transactions_db"
+  TXN_REDIS_URI: "redis://redis:6379/0"
+  # Rutas a las claves montadas desde el Secret jwt-keys (ver up.sh).
+  AUTH_JWT_PRIVATE_KEY_FILE: "/keys/jwt-private.pem"
+  AUTH_JWT_PUBLIC_KEY_FILE: "/keys/jwt-public.pem"
+  TXN_JWT_PUBLIC_KEY_FILE: "/keys/jwt-public.pem"

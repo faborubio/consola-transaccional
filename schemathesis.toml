@@ -1,0 +1,19 @@
+# Configuración de Schemathesis (Fase 6). Autodescubierto desde la raíz.
+
+# `GET /auth/me` no tiene parámetros (el bearer lo inyecta el hook), así que Hypothesis
+# no logra generar N ejemplos DISTINTOS y dispara el health check `filter_too_much`.
+# Es ruido del generador para operaciones de entrada trivial, no un problema del API.
+suppress-health-check = ["filter_too_much"]
+#
+# Por qué 422 es aceptable ante datos "schema-compliant":
+# la validación de dominio del API es MÁS RICA que lo que OpenAPI 3.0 puede expresar
+#   - `dateFrom`/`dateTo`: el formato date-time se valida de verdad (un string que el
+#     schema acepta, p. ej. "null", no es una fecha → 422 correcto).
+#   - `reason` en /transitions: requerido SOLO para ciertas acciones (REVERTIR, …),
+#     condición que OpenAPI no puede declarar.
+# Un 422 documentado es la respuesta CORRECTA, no un rechazo de datos válidos. Por eso
+# se añade a los status esperados de `positive_data_acceptance` (los demás checks
+# —conformance de schema y de status code, server-error— se conservan intactos: son los
+# que cazaron el gap del handler 500 en la auditoría de Fase 4).
+[checks.positive_data_acceptance]
+expected-statuses = ["2xx", "401", "403", "404", "409", "422", "5xx"]
