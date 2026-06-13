@@ -17,7 +17,7 @@ jobs:
         working-directory: services/${{ matrix.service }}
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v8.2.0
       - name: Instalar dependencias
         run: uv sync --frozen
       - name: Lint (ruff)
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v8.2.0
       - name: Levantar Mongo replica set
         # `run` arranca mongo (espera su healthcheck), ejecuta el init en
         # foreground y propaga su exit code — `compose wait` no sirve para
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v8.2.0
       - name: Exportar OpenAPI runtime de transactions
         working-directory: services/transactions
         run: |
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v8.2.0
       - name: Fuzzing del contrato con hook de login
         # El script levanta Mongo (replica set) + Redis con compose, corre ambos apps
         # con uv, hace login real e inyecta el bearer en cada request generado. Sin el
