@@ -1,9 +1,9 @@
 # Configuración de Schemathesis (Fase 6). Autodescubierto desde la raíz.
-
-# `GET /auth/me` no tiene parámetros (el bearer lo inyecta el hook), así que Hypothesis
-# no logra generar N ejemplos DISTINTOS y dispara el health check `filter_too_much`.
-# Es ruido del generador para operaciones de entrada trivial, no un problema del API.
-suppress-health-check = ["filter_too_much"]
+#
+# NOTA: el health check `filter_too_much` (ruido del generador en operaciones sin
+# parámetros o con {id} de patrón restrictivo) se suprime en la CLI del runner, NO aquí:
+# `suppress-health-check` del toml se carga pero no se propaga de forma fiable a la fase
+# Fuzzing. El expected-statuses de abajo SÍ se aplica (es config de check, no de Hypothesis).
 #
 # Por qué 422 es aceptable ante datos "schema-compliant":
 # la validación de dominio del API es MÁS RICA que lo que OpenAPI 3.0 puede expresar

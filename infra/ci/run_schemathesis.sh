@@ -66,10 +66,16 @@ run_st() {
   SCHEMATHESIS_HOOKS=schemathesis_hooks \
   PYTHONPATH="$ROOT/infra/ci" \
   AUTH_BASE_URL="http://localhost:$AUTH_PORT" \
-  uv run --with 'schemathesis>=4.21,<5' --with requests \
+  # Versión pinada (reproducibilidad, como el openapi-generator). El
+  # --suppress-health-check va en la CLI a propósito: el mismo ajuste en
+  # schemathesis.toml se carga pero NO se propaga de forma fiable a la fase Fuzzing
+  # (lo destapó CI con 15 ejemplos). `filter_too_much` es ruido del generador en
+  # operaciones de entrada trivial o con {id} de patrón restrictivo sin datos sembrados.
+  uv run --with 'schemathesis==4.21.5' --with requests \
     schemathesis run "http://localhost:$port/openapi.json" \
       --url "http://localhost:$port" \
       --max-examples "${ST_MAX_EXAMPLES:-15}" \
+      --suppress-health-check=filter_too_much \
       --workers 1
 }
 

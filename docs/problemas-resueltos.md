@@ -9,6 +9,12 @@
 
 ## 2026-06-13 — Fase 6
 
+### 36. `suppress-health-check` en `schemathesis.toml` no se propaga a la fase Fuzzing — RESUELTO (lo destapó CI)
+- **Problema:** el job de Schemathesis pasaba en local pero fallaba de forma **intermitente** en CI: el health check `filter_too_much` de Hypothesis (ruido del generador en `GET /transactions/{id}` —patrón de `{id}` restrictivo y sin datos sembrados→ muchos ejemplos filtrados) tumbaba la fase Fuzzing. Estaba suprimido en `schemathesis.toml`.
+- **Causa:** el `suppress-health-check` del toml **se carga** (`SchemathesisConfig.discover()` lo muestra) pero **no se propaga de forma fiable** a las settings de Hypothesis de la fase Fuzzing. Local con 30 ejemplos no cruzaba el umbral (ratio filtrados/generados); CI con 15 sí. No era drift de versión (`uv run --with` resolvía 4.21.5 en ambos).
+- **Solución:** pasar `--suppress-health-check=filter_too_much` en la **CLI** del runner (sí se aplica a la ejecución) y **pinar** `schemathesis==4.21.5` (reproducibilidad, como el openapi-generator). El `[checks.positive_data_acceptance] expected-statuses` sí se aplica desde el toml (es config de check, no de Hypothesis) y se queda ahí.
+- **Cómo evitarlo:** lo que afecta la *generación* (health checks, modos) va por CLI/flag explícito; el toml es fiable para config de *checks* (evaluación de respuestas). Pinar la versión del fuzzer para que CI no derive con `uv run --with` flotante.
+
 ### 35. `kind load docker-image` se cuelga con el containerd image store de Docker — RESUELTO
 - **Problema:** `make k8s-up` quedaba colgado >10 min cargando las imágenes al cluster; ninguna llegaba al nodo. El proceso atascado era `ctr --namespace=k8s.io images import --all-platforms`.
 - **Causa:** Docker usa el *containerd image store* (snapshotter v1) → las imágenes son índices OCI multi-plataforma. `kind load` pasa `--all-platforms` a `ctr import`, que intenta resolver plataformas no presentes y se cuelga. (`--provenance=false` quita las attestations pero no el comportamiento de `--all-platforms`.)
