@@ -59,24 +59,29 @@ for url in "http://localhost:$AUTH_PORT/health" "http://localhost:$TXN_PORT/heal
   curl -sf "$url" >/dev/null || { echo "Timeout esperando $url"; exit 1; }
 done
 
-# 5. Schemathesis sobre cada esquema, autenticado por el hook
+# 5. Schemathesis sobre cada esquema, autenticado por el hook.
+# venv dedicado + binario DIRECTO con PYTHONPATH. NO `uv run --with`: el uv nuevo (que
+# instala setup-uv v8) NO propaga PYTHONPATH al subproceso → el hook no se cargaba en CI
+# y el fuzzing corría SIN auth (todo 401: teatro verde, justo lo que el hook evita).
+# Pinado a 4.21.5 por reproducibilidad (como el openapi-generator).
+ST_VENV="$(mktemp -d)/st-venv"
+uv venv "$ST_VENV" >/dev/null
+uv pip install --python "$ST_VENV" 'schemathesis==4.21.5' requests >/dev/null
+
 run_st() {
   local name="$1" port="$2"
   echo "=== Schemathesis: $name (puerto $port) ==="
+  # --suppress-health-check en la CLI: el mismo ajuste en schemathesis.toml se carga
+  # pero NO se propaga a la fase Fuzzing. `filter_too_much` es ruido del generador en
+  # operaciones sin parámetros o con {id} de patrón restrictivo sin datos sembrados.
   SCHEMATHESIS_HOOKS=schemathesis_hooks \
   PYTHONPATH="$ROOT/infra/ci" \
   AUTH_BASE_URL="http://localhost:$AUTH_PORT" \
-  # Versión pinada (reproducibilidad, como el openapi-generator). El
-  # --suppress-health-check va en la CLI a propósito: el mismo ajuste en
-  # schemathesis.toml se carga pero NO se propaga de forma fiable a la fase Fuzzing
-  # (lo destapó CI con 15 ejemplos). `filter_too_much` es ruido del generador en
-  # operaciones de entrada trivial o con {id} de patrón restrictivo sin datos sembrados.
-  uv run --with 'schemathesis==4.21.5' --with requests \
-    schemathesis run "http://localhost:$port/openapi.json" \
-      --url "http://localhost:$port" \
-      --max-examples "${ST_MAX_EXAMPLES:-15}" \
-      --suppress-health-check=filter_too_much \
-      --workers 1
+  "$ST_VENV/bin/schemathesis" run "http://localhost:$port/openapi.json" \
+    --url "http://localhost:$port" \
+    --max-examples "${ST_MAX_EXAMPLES:-15}" \
+    --suppress-health-check=filter_too_much \
+    --workers 1
 }
 
 run_st auth "$AUTH_PORT"
