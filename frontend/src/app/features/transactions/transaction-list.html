@@ -7,6 +7,12 @@
   <app-transaction-filters />
 
   @if (vm$ | async; as vm) {
+    @if (vm.error) {
+      <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>{{ vm.error }}</span>
+        <button class="btn btn-sm btn-outline-secondary" (click)="retry()">Reintentar</button>
+      </div>
+    }
     <div class="table-responsive">
       <table class="table table-hover table-sm align-middle">
         <thead class="table-light">

@@ -7,6 +7,28 @@
 
 ---
 
+## 2026-06-13 — Auditoría Fase 3 (hallazgo del usuario: spinner pegado)
+
+### 22. Queries canceladas por el frontend siguen corriendo en Mongo y se acumulan — RESUELTO
+- **Problema:** la consola quedó "pegada" en el spinner. Los logs mostraron la verdad: las queries respondían 200 pero con latencias de 30s, 36s y hasta **212 segundos**.
+- **Causa (cadena completa):** (1) prefijos de contraparte de 1-2 letras (`c`, `co` mientras se tipea) matchean una fracción enorme del índice multikey `searchKeys` → scan gigante + top-k sort; (2) al cambiar filtros, `switchMap` cancela el request del frontend pero **el servidor no cancela la query en Mongo** — siguen corriendo; (3) avalancha de queries pesadas concurrentes → degradación en bola de nieve.
+- **Solución (tres niveles):** `maxTimeMS` (10s, `TXN_QUERY_TIMEOUT_MS`) en la query de listado → `503 QUERY_TIMEOUT` con mensaje accionable (nuevo en el contrato); `minLength: 3` para counterparty en contrato + backend; el frontend no envía prefijos <3 chars y muestra el mínimo en el placeholder.
+- **Cómo evitarlo:** toda query expuesta a filtros de usuario lleva cota de tiempo server-side. La cancelación HTTP del cliente NO cancela la operación en la base — diseñar siempre asumiendo eso.
+
+### 21. Spinner eterno cuando el listado falla o tarda — RESUELTO
+- **Problema:** ante un error, el stream emitía solo un toast (que expira en 8s) y nada más: la UI quedaba en spinner indefinido sin acción posible.
+- **Causa:** `catchError → EMPTY` dentro del stream del listado: el error no producía estado visible.
+- **Solución:** el error es parte del view-model (`ListVm.error`) → alert persistente con botón **Reintentar** (`reload$`). El toast del listado se eliminó: un error de carga es estado de página, no notificación pasajera.
+- **Cómo evitarlo:** regla de UI: todo stream que alimenta una vista debe tener representación de error renderizable, no solo efectos secundarios.
+
+### 20. El test de caminata hacía COLLSCAN de 500k por página — RESUELTO
+- **Problema:** con `maxTimeMS` activo, el test de caminata empezó a fallar con `ExecutionTimeout` (y la suite tardaba 9 minutos con Mongo degradado).
+- **Causa:** filtraba solo por `currency=TST` (sin índice) → COLLSCAN completo por cada página caminada.
+- **Solución:** el test acota además por rango de fechas alrededor del instante de los documentos → usa el índice `(createdAt, _id)`; la suite volvió a 2.5s.
+- **Cómo evitarlo:** los tests de integración también deben usar queries indexables — un test lento es un test que se deja de correr.
+
+---
+
 ## 2026-06-12 — Fase 3
 
 ### 19. `HttpTestingController` no puede flushear requests canceladas por forkJoin — RESUELTO

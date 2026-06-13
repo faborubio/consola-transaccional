@@ -23,6 +23,11 @@ N_DOCS = 50
 PAGE_SIZE = 7
 SAME_INSTANT = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
 SAME_AMOUNT = 999_999.99
+# Rango de fechas alrededor del instante: la caminata usa el índice de
+# createdAt en vez de hacer COLLSCAN por currency sobre 500k (que con
+# maxTimeMS activo además expira).
+WINDOW_FROM = datetime(2026, 5, 1, 0, 0, 0, tzinfo=UTC)
+WINDOW_TO = datetime(2026, 5, 2, 0, 0, 0, tzinfo=UTC)
 
 
 def _doc(i: int) -> dict:
@@ -70,8 +75,8 @@ async def _walk(sort: str) -> list[str]:
             max_amount=None,
             currency=MARKER_CURRENCY,
             counterparty=None,
-            date_from=None,
-            date_to=None,
+            date_from=WINDOW_FROM,
+            date_to=WINDOW_TO,
         )
         seen.extend(t.id for t in page.items)
         if not page.pageInfo.hasNextPage:
@@ -107,8 +112,8 @@ async def test_ultima_pagina_reporta_fin():
             max_amount=None,
             currency=MARKER_CURRENCY,
             counterparty=None,
-            date_from=None,
-            date_to=None,
+            date_from=WINDOW_FROM,
+            date_to=WINDOW_TO,
         )
         seen_pages += 1
         if not page.pageInfo.hasNextPage:

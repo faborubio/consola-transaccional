@@ -2,11 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import {
-  EMPTY,
+  BehaviorSubject,
   Subject,
   catchError,
+  combineLatest,
   concatMap,
   map,
+  of,
   scan,
   startWith,
   switchMap,
@@ -17,6 +19,7 @@ import {
   TransactionStatus,
   TransactionType,
   Transaction,
+  TransactionPage,
   TransactionPagePageInfo as PageInfo,
 } from '../../api-client';
 import {
@@ -25,15 +28,20 @@ import {
 } from '../../services/transactions-api.service';
 import { AuthApiService } from '../../services/auth-api.service';
 import { describeApiError } from '../../shared/api-error';
-import { ToastService } from '../../shared/toast.service';
 import { TransactionFilters } from './transaction-filters';
 
 interface ListVm {
   items: Transaction[];
   pageInfo: PageInfo;
+  error: string | null;
 }
 
-const EMPTY_VM: ListVm = { items: [], pageInfo: { hasNextPage: false } };
+interface PageResult {
+  page: TransactionPage | null;
+  error: string | null;
+}
+
+const EMPTY_VM: ListVm = { items: [], pageInfo: { hasNextPage: false }, error: null };
 
 /** URL → filtros de API. Pura y exportada: el contrato de la consola con su URL. */
 export function paramsToFilters(params: ParamMap): Filters {
@@ -46,11 +54,14 @@ export function paramsToFilters(params: ParamMap): Filters {
   // desde = inicio del día, hasta = fin del día (inclusivo).
   const dateFrom = params.get('dateFrom');
   const dateTo = params.get('dateTo');
+  // Prefijos de <3 caracteres degradan el índice multikey: no se envían
+  // (el backend además los rechaza con 422 — minLength 3 en el contrato).
+  const counterparty = params.get('counterparty') ?? '';
   return {
     status: params.getAll('status') as TransactionStatus[],
     type: (params.get('type') as TransactionType) || undefined,
     currency: params.get('currency') || undefined,
-    counterparty: params.get('counterparty') || undefined,
+    counterparty: counterparty.length >= 3 ? counterparty : undefined,
     minAmount: num('minAmount'),
     maxAmount: num('maxAmount'),
     dateFrom: dateFrom ? `${dateFrom}T00:00:00Z` : undefined,
@@ -69,41 +80,57 @@ export class TransactionList {
   private readonly router = inject(Router);
   private readonly api = inject(TransactionsApiService);
   private readonly authApi = inject(AuthApiService);
-  private readonly toasts = inject(ToastService);
 
   // "Cargar más": el cursor es estado efímero de paginación, no va a la URL.
   private readonly loadMore$ = new Subject<string>();
+  private readonly reload$ = new BehaviorSubject<void>(undefined);
   private nextCursor: string | null = null;
 
   /**
-   * Los filtros viven en la URL. Cada cambio reinicia la acumulación;
-   * "cargar más" anexa páginas. Errores → toast y la lista queda utilizable.
+   * Los filtros viven en la URL. Cada cambio (o reintento) reinicia la
+   * acumulación; "cargar más" anexa páginas. Un error NO deja la lista en
+   * spinner eterno: produce un vm con error y botón de reintento.
    */
-  protected readonly vm$ = this.route.queryParamMap.pipe(
-    map(paramsToFilters),
+  protected readonly vm$ = combineLatest([
+    this.route.queryParamMap.pipe(map(paramsToFilters)),
+    this.reload$,
+  ]).pipe(
+    map(([filters]) => filters),
     switchMap((filters) =>
       this.loadMore$.pipe(
         startWith(undefined),
         concatMap((cursor) =>
           this.api.list(filters, cursor).pipe(
-            catchError((err: unknown) => {
-              this.toasts.error(describeApiError(err));
-              return EMPTY;
-            }),
+            map((page): PageResult => ({ page, error: null })),
+            catchError((err: unknown) =>
+              of<PageResult>({ page: null, error: describeApiError(err) }),
+            ),
           ),
         ),
-        tap((page) => (this.nextCursor = page.pageInfo.nextCursor ?? null)),
+        tap(({ page }) => {
+          if (page) {
+            this.nextCursor = page.pageInfo.nextCursor ?? null;
+          }
+        }),
         scan(
-          (acc: ListVm, page): ListVm => ({
-            items: [...acc.items, ...page.items],
-            pageInfo: page.pageInfo,
-          }),
+          (acc: ListVm, { page, error }): ListVm =>
+            error
+              ? { ...acc, error }
+              : {
+                  items: [...acc.items, ...page!.items],
+                  pageInfo: page!.pageInfo,
+                  error: null,
+                },
           EMPTY_VM,
         ),
         startWith(null), // estado de carga al cambiar filtros
       ),
     ),
   );
+
+  protected retry(): void {
+    this.reload$.next();
+  }
 
   protected loadMore(): void {
     if (this.nextCursor) {

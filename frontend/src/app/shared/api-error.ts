@@ -37,6 +37,8 @@ export function describeApiError(err: unknown): string {
       return 'La transacción fue modificada por otro usuario; recargue e intente de nuevo.';
     case 'UNAUTHORIZED':
       return 'Su sesión expiró; vuelva a iniciar sesión.';
+    case 'QUERY_TIMEOUT':
+      return 'La consulta tardó demasiado; acote los filtros (fechas, estado) e intente de nuevo.';
   }
   if (err.status === 0) {
     return 'Sin conexión con el servidor.';

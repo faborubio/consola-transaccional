@@ -52,6 +52,7 @@ class TransactionsRepository:
             self.transactions.find(query)
             .sort([(sort_field, direction), ("_id", direction)])
             .limit(limit + 1)
+            .max_time_ms(get_settings().query_timeout_ms)
         )
         return await cursor.to_list(length=limit + 1)
 

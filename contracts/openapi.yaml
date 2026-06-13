@@ -197,8 +197,10 @@ paths:
             Búsqueda por prefijo (insensible a mayúsculas) sobre el nombre o el
             número de cuenta de la contraparte, origen o destino. Es prefijo y
             no substring por diseño: el prefijo usa índice; un substring a
-            volumen requeriría full-text search (descartado en v1).
-          schema: { type: string }
+            volumen requeriría full-text search (descartado en v1). Mínimo 3
+            caracteres: un prefijo más corto matchea una fracción enorme del
+            índice multikey y degrada el sistema completo.
+          schema: { type: string, minLength: 3 }
         - name: dateFrom
           in: query
           schema: { type: string, format: date-time }
@@ -223,6 +225,19 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '503':
+          description: >
+            La consulta excedió el tiempo máximo del servidor (maxTimeMS).
+            Cota operacional deliberada: una combinación de filtros demasiado
+            amplia falla rápido y con mensaje accionable, en vez de acumularse
+            en la base y degradar a todos los operadores.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: QUERY_TIMEOUT
+                message: 'La consulta tardó demasiado; acote los filtros.'
 
   /transactions/{id}:
     get:

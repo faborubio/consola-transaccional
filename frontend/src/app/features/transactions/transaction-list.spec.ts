@@ -48,4 +48,12 @@ describe('paramsToFilters (contrato URL → API)', () => {
     expect(f.minAmount).toBeUndefined();
     expect(f.maxAmount).toBeUndefined();
   });
+
+  it('no envía prefijos de contraparte menores a 3 caracteres', () => {
+    // un prefijo de 1-2 letras matchea una fracción enorme del índice multikey
+    expect(paramsToFilters(convertToParamMap({ counterparty: 'co' })).counterparty)
+      .toBeUndefined();
+    expect(paramsToFilters(convertToParamMap({ counterparty: 'com' })).counterparty)
+      .toBe('com');
+  });
 });

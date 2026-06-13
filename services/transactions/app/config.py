@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     mongo_db: str = "transactions_db"
     service_name: str = "transactions"
 
+    # Cota dura por query (maxTimeMS): una consulta demasiado amplia falla
+    # rápido (503 QUERY_TIMEOUT) en vez de acumularse en Mongo — el frontend
+    # cancela su request pero el servidor seguiría ejecutando la query.
+    query_timeout_ms: int = 10_000
+
     # Clave PÚBLICA RS256: este servicio solo verifica tokens; jamás los emite.
     # PEM inline (tests) o ruta a archivo (compose monta infra/keys/jwt-public.pem).
     jwt_public_key: str | None = None

@@ -239,6 +239,15 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.5 → v1.6 (auditoría post-Fase 3 — 2026-06-13, gatillada por hallazgo del usuario)
+
+> El usuario encontró la consola "pegada" en el spinner. El diagnóstico reveló
+> queries de hasta 212s acumuladas en Mongo. Tres fixes estructurales:
+
+1. **`maxTimeMS` en las queries de listado** (10s, configurable) + `503 QUERY_TIMEOUT` en el contrato: una combinación de filtros demasiado amplia falla rápido y accionable. Lección de fondo: la cancelación HTTP del cliente NO cancela la query en la base.
+2. **Prefijo mínimo de 3 caracteres en `counterparty`** en los tres niveles (contrato `minLength`, validación backend 422, el frontend no envía prefijos cortos): un prefijo de 1-2 letras matchea una fracción enorme del índice multikey.
+3. **Estado de error renderizable en el listado** con botón Reintentar — un error ya no deja spinner eterno; el toast pasajero no es representación válida de un error de página.
+
 ### v1.4 → v1.5 (auditoría post-Fase 2 — 2026-06-12)
 
 1. **`POST /auth/logout` agregado al contrato (v1):** revoca la familia de refresh server-side; siempre 204 (no revela validez del token; revocar es inocuo). Sin esto, "cerrar sesión" dejaba la familia viva hasta su TTL de 7 días.

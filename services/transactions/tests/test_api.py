@@ -61,6 +61,30 @@ def test_validation_error_uses_contract_schema():
     assert any(d["field"] == "limit" for d in body["details"])
 
 
+def test_counterparty_corto_rechazado():
+    """Prefijos de <3 caracteres degradan el índice multikey: 422 del contrato."""
+    res = client.get("/transactions", params={"counterparty": "co"}, headers=HEADERS)
+    assert res.status_code == 422
+    body = res.json()
+    assert body["code"] == "VALIDATION_ERROR"
+    assert any(d["field"] == "counterparty" for d in body["details"])
+
+
+def test_query_timeout_responde_503():
+    """ExecutionTimeout de Mongo (maxTimeMS) → 503 QUERY_TIMEOUT accionable."""
+    from pymongo.errors import ExecutionTimeout
+
+    mock = AsyncMock()
+    mock.list_transactions.side_effect = ExecutionTimeout("operation exceeded time limit")
+    app.dependency_overrides[get_service] = lambda: mock
+    try:
+        res = client.get("/transactions", headers=HEADERS)
+        assert res.status_code == 503
+        assert res.json()["code"] == "QUERY_TIMEOUT"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_not_found_uses_contract_schema():
     mock = AsyncMock()
     mock.get_transaction.return_value = None

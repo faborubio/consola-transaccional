@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
+from pymongo.errors import ExecutionTimeout
 
 from app.api.auth import current_user
 from app.api.errors import ApiError
@@ -38,7 +39,7 @@ def get_service() -> TransactionsService:
     summary="Listar transacciones (paginación y filtros server-side)",
     response_model=TransactionPage,
     response_model_exclude_none=False,
-    responses={401: ERROR_401, 422: {"model": Error}},
+    responses={401: ERROR_401, 422: {"model": Error}, 503: {"model": Error}},
 )
 async def list_transactions(
     service: Annotated[TransactionsService, Depends(get_service)],
@@ -49,7 +50,7 @@ async def list_transactions(
     minAmount: Annotated[float | None, Query(ge=0)] = None,  # noqa: N803
     maxAmount: Annotated[float | None, Query(ge=0)] = None,  # noqa: N803
     currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    counterparty: Annotated[str | None, Query()] = None,
+    counterparty: Annotated[str | None, Query(min_length=3)] = None,
     dateFrom: Annotated[datetime | None, Query()] = None,  # noqa: N803
     dateTo: Annotated[datetime | None, Query()] = None,  # noqa: N803
     sort: Annotated[str, Query()] = "-createdAt",
@@ -70,6 +71,10 @@ async def list_transactions(
         )
     except (InvalidCursorError, InvalidSortError) as exc:
         raise ApiError(422, "VALIDATION_ERROR", str(exc)) from exc
+    except ExecutionTimeout as exc:
+        raise ApiError(
+            503, "QUERY_TIMEOUT", "La consulta tardó demasiado; acote los filtros."
+        ) from exc
 
 
 @router.get(
