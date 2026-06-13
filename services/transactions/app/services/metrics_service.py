@@ -1,11 +1,17 @@
-"""Métricas del dashboard: un solo $facet + cache Redis con TTL corto.
+"""Métricas del dashboard: rollups con cache Redis (TTL corto) y single-flight.
 
 Aquí el cache SÍ tiene sentido (a diferencia de los listados): la invalidación
-es por tiempo, no por evento; el resultado es un objeto pequeño; y correr el
-pipeline sobre 500k en cada carga degrada sin necesidad. Si Redis no está, se
+es por tiempo, no por evento; el resultado es un objeto pequeño; y correr los
+rollups sobre 500k en cada carga degrada sin necesidad. Si Redis no está, se
 sirve siempre fresco (fail-open: el dashboard es lectura, no una mutación).
+
+Single-flight: al expirar el TTL, N operadores simultáneos producirían N
+recomputaciones concurrentes (estampida — el primo del problema de bola de
+nieve de la Fase 3). Un lock `SET NX` deja que UN worker regenere mientras los
+demás esperan el resultado en cache.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -20,6 +26,10 @@ from app.services.idempotency import get_redis
 logger = logging.getLogger("api.metrics")
 
 CACHE_KEY = "metrics:dashboard"
+LOCK_KEY = "metrics:dashboard:lock"
+LOCK_TTL_S = 20  # auto-expira si el worker que regenera muere
+WAIT_POLLS = 50  # hasta 5s esperando el resultado del que tiene el lock
+WAIT_INTERVAL_S = 0.1
 
 
 class MetricsService:
@@ -34,9 +44,40 @@ class MetricsService:
         if cached is not None:
             return cached, True
 
-        metrics = await self._compute()
-        await self._write_cache(metrics)
-        return metrics, False
+        lock = await self._acquire_lock()
+        if lock is None:
+            # Redis no disponible: sin cache ni lock posibles → computar (fail-open).
+            return await self._compute(), False
+        if lock:
+            try:
+                metrics = await self._compute()
+                await self._write_cache(metrics)
+                return metrics, False
+            finally:
+                await self._release_lock()
+
+        # Otro worker está regenerando: esperar su resultado en cache.
+        for _ in range(WAIT_POLLS):
+            await asyncio.sleep(WAIT_INTERVAL_S)
+            cached = await self._read_cache()
+            if cached is not None:
+                return cached, True
+        # Si tardó demasiado, computar igual (correcto, sin bloquear indefinido).
+        return await self._compute(), False
+
+    async def _acquire_lock(self) -> bool | None:
+        """True = lo tomamos; False = otro lo tiene; None = Redis caído."""
+        try:
+            got = await self._redis.set(LOCK_KEY, "1", nx=True, ex=LOCK_TTL_S)
+            return bool(got)
+        except RedisError:
+            return None
+
+    async def _release_lock(self) -> None:
+        try:
+            await self._redis.delete(LOCK_KEY)
+        except RedisError:
+            pass
 
     async def _compute(self) -> DashboardMetrics:
         rows_status, rows_month = await self.repo.metrics_rollups(

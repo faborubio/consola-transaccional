@@ -98,17 +98,20 @@ export class MetricsService extends BaseService implements MetricsServiceInterfa
     /**
      * Acciones del usuario en sesión (sobre la auditoría)
      * Historial de transiciones ejecutadas por el usuario autenticado, leído del log de auditoría (no de &#x60;reviewedBy&#x60;, que solo guarda el último actor). Responde la pregunta \&quot;¿qué envié a revisión / aprobé / rechacé?\&quot; de forma estable aunque otro supervisor haya actuado después. 
+     * @param actor Ver la actividad de OTRO actor. Reservado al rol &#x60;auditor&#x60; (accountability vs. need-to-know). Cualquier otro rol que lo use recibe 403. Sin este parámetro, cada quien ve la suya. 
      * @param action Filtrar por un tipo de acción.
      * @param limit 
      * @param observe set whether or not to return the data Observable as the body, response or events. defaults to returning the body.
      * @param reportProgress flag to report request and response progress.
      */
-    public getMyActivity(action?: TransitionAction, limit?: number, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<Array<AuditEntry>>;
-    public getMyActivity(action?: TransitionAction, limit?: number, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<Array<AuditEntry>>>;
-    public getMyActivity(action?: TransitionAction, limit?: number, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<Array<AuditEntry>>>;
-    public getMyActivity(action?: TransitionAction, limit?: number, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
+    public getMyActivity(actor?: string, action?: TransitionAction, limit?: number, observe?: 'body', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<Array<AuditEntry>>;
+    public getMyActivity(actor?: string, action?: TransitionAction, limit?: number, observe?: 'response', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpResponse<Array<AuditEntry>>>;
+    public getMyActivity(actor?: string, action?: TransitionAction, limit?: number, observe?: 'events', reportProgress?: boolean, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<HttpEvent<Array<AuditEntry>>>;
+    public getMyActivity(actor?: string, action?: TransitionAction, limit?: number, observe: any = 'body', reportProgress: boolean = false, options?: {httpHeaderAccept?: 'application/json', context?: HttpContext, transferCache?: boolean}): Observable<any> {
 
         let localVarQueryParameters = new HttpParams({encoder: this.encoder});
+        localVarQueryParameters = this.addToHttpParams(localVarQueryParameters,
+          <any>actor, 'actor');
         localVarQueryParameters = this.addToHttpParams(localVarQueryParameters,
           <any>action, 'action');
         localVarQueryParameters = this.addToHttpParams(localVarQueryParameters,

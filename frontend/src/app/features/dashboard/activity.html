@@ -7,15 +7,30 @@
     supervisor opere la misma transacción después.
   </p>
 
-  <div class="mb-3" style="max-width: 18rem">
-    <label class="form-label small mb-1" for="act">Filtrar por acción</label>
-    <select id="act" class="form-select form-select-sm" (change)="setFilter($any($event.target).value)">
-      <option value="">Todas mis acciones</option>
-      <option value="APROBAR">Aprobaciones</option>
-      <option value="RECHAZAR">Rechazos</option>
-      <option value="ENVIAR_A_REVISION">Envíos a revisión</option>
-      <option value="REVERTIR">Reversas</option>
-    </select>
+  <div class="row g-3 mb-3" style="max-width: 40rem">
+    <div class="col-sm-6">
+      <label class="form-label small mb-1" for="act">Filtrar por acción</label>
+      <select id="act" class="form-select form-select-sm" (change)="setFilter($any($event.target).value)">
+        <option value="">Todas las acciones</option>
+        <option value="APROBAR">Aprobaciones</option>
+        <option value="RECHAZAR">Rechazos</option>
+        <option value="ENVIAR_A_REVISION">Envíos a revisión</option>
+        <option value="REVERTIR">Reversas</option>
+      </select>
+    </div>
+    @if (isAuditor) {
+      <div class="col-sm-6">
+        <label class="form-label small mb-1" for="actor">
+          Actor a auditar <span class="badge text-bg-dark">auditor</span>
+        </label>
+        <input
+          id="actor"
+          class="form-control form-control-sm"
+          placeholder="usr_09 (vacío = tu actividad)"
+          (input)="setActor($any($event.target).value)"
+        />
+      </div>
+    }
   </div>
 
   @if (vm$ | async; as vm) {

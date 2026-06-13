@@ -394,6 +394,13 @@ paths:
         rechacé?" de forma estable aunque otro supervisor haya actuado después.
       operationId: getMyActivity
       parameters:
+        - name: actor
+          in: query
+          description: >
+            Ver la actividad de OTRO actor. Reservado al rol `auditor`
+            (accountability vs. need-to-know). Cualquier otro rol que lo use
+            recibe 403. Sin este parámetro, cada quien ve la suya.
+          schema: { type: string }
         - name: action
           in: query
           description: Filtrar por un tipo de acción.
@@ -417,6 +424,13 @@ paths:
                   $ref: '#/components/schemas/AuditEntry'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Solo un auditor puede consultar la actividad de otro actor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example: { code: FORBIDDEN_ROLE, message: 'Solo un auditor puede ver la actividad de otros.' }
         '422':
           $ref: '#/components/responses/ValidationError'
 

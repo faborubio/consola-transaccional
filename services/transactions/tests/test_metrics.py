@@ -98,3 +98,29 @@ async def test_cache_expira(service):
     await service._redis.delete(CACHE_KEY)
     _, hit = await service.dashboard()
     assert hit is False
+
+
+async def test_single_flight_evita_estampida():
+    """Dos cargas simultáneas tras un MISS → UNA sola recomputación; el segundo
+    espera y recibe el resultado del cache (no escanea la colección de nuevo)."""
+    import asyncio
+
+    fake = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    repo = TransactionsRepository(db=get_client()[TEST_DB])
+
+    computes = {"n": 0}
+    original = repo.metrics_rollups
+
+    async def counting_rollups(timeout_ms):
+        computes["n"] += 1
+        await asyncio.sleep(0.2)  # simula el costo del scan, da tiempo a la carrera
+        return await original(timeout_ms)
+
+    repo.metrics_rollups = counting_rollups
+    svc = MetricsService(repo=repo, redis=fake)
+
+    r1, r2 = await asyncio.gather(svc.dashboard(), svc.dashboard())
+
+    assert computes["n"] == 1, "single-flight debe recomputar una sola vez"
+    hits = sorted([r1[1], r2[1]])
+    assert hits == [False, True]  # uno computó (MISS), el otro esperó (HIT)

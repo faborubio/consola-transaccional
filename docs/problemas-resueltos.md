@@ -7,6 +7,15 @@
 
 ---
 
+## 2026-06-13 — Auditoría Fase 5
+
+### 27. Cache stampede: al expirar el TTL, N cargas simultáneas recomputan todas — RESUELTO
+- **Problema:** el dashboard cachea 30s, pero al expirar, M operadores simultáneos producen M recomputaciones concurrentes (estampida — el primo del problema de bola de nieve de Fase 3). Con Redis caído (fail-open) es permanente.
+- **Solución:** single-flight con `SET NX` (mismo patrón que idempotencia): un worker toma el lock y regenera; los demás esperan (poll corto) y reciben el resultado del cache. Fallback: si tarda demasiado, computan igual (correcto, sin bloquear). Test con `asyncio.gather` verifica UNA sola recomputación.
+- **Cómo evitarlo:** todo cache de un cómputo costoso necesita single-flight; el TTL solo no basta a concurrencia.
+
+---
+
 ## 2026-06-13 — Fase 5
 
 ### 26. `$facet` es 55× más lento que dos `$group` separados sobre 500k — RESUELTO

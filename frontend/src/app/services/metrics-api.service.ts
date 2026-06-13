@@ -12,7 +12,7 @@ export class MetricsApiService {
     return this.client.getDashboardMetrics();
   }
 
-  myActivity(action?: TransitionAction, limit = 50): Observable<AuditEntry[]> {
-    return this.client.getMyActivity(action, limit);
+  myActivity(action?: TransitionAction, actor?: string, limit = 50): Observable<AuditEntry[]> {
+    return this.client.getMyActivity(actor, action, limit);
   }
 }

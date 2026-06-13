@@ -240,6 +240,13 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.8 → v1.9 (auditoría post-Fase 5 — 2026-06-13)
+
+1. **Single-flight en el cache del dashboard** (`SET NX`): evita la estampida de recomputaciones cuando el TTL expira con varios operadores en línea. Test de concurrencia con `asyncio.gather`.
+2. **Rol `auditor` cierra su promesa:** `/activity?actor=` permite a un auditor ver la actividad de otro; supervisor que lo intente recibe 403 (autorización en el servidor). Frontend: input visible solo para auditor. Verificado en vivo.
+3. **Tests de la capa HTTP de métricas/actividad** (X-Cache, filtros, 403 del auditor) — cerrado el hueco de cobertura de ruta.
+4. **Pendientes anotados para Fase 7:** paginación de `/activity`, acotar `byMonth` a 12 meses, enriquecer "Mi actividad" con monto, versionar la clave de cache ante cambios de modelo.
+
 ### v1.7 → v1.8 (Fase 5 — 2026-06-13)
 
 1. **Dashboard sin `$facet`, contra lo que el plan pedía — con evidencia.** Medido sobre 500k: `$facet` 69s vs dos `$group` separados 1.2s (55×). `$facet` materializa todo en memoria y no usa índices. Los rollups corren en paralelo (`asyncio.gather`); el total se deriva de los conteos por estado. El cache Redis (TTL 30s) sigue: MISS 0.9s, HIT 0.07s. **Corrección del plan**: la regla pasa a ser "agregaciones separadas que puedan usar índices > un `$facet` sobre toda la colección".

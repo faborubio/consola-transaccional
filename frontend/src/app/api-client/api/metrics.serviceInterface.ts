@@ -33,9 +33,10 @@ export interface MetricsServiceInterface {
     /**
      * Acciones del usuario en sesión (sobre la auditoría)
      * Historial de transiciones ejecutadas por el usuario autenticado, leído del log de auditoría (no de &#x60;reviewedBy&#x60;, que solo guarda el último actor). Responde la pregunta \&quot;¿qué envié a revisión / aprobé / rechacé?\&quot; de forma estable aunque otro supervisor haya actuado después. 
+     * @param actor Ver la actividad de OTRO actor. Reservado al rol &#x60;auditor&#x60; (accountability vs. need-to-know). Cualquier otro rol que lo use recibe 403. Sin este parámetro, cada quien ve la suya. 
      * @param action Filtrar por un tipo de acción.
      * @param limit 
      */
-    getMyActivity(action?: TransitionAction, limit?: number, extraHttpRequestParams?: any): Observable<Array<AuditEntry>>;
+    getMyActivity(actor?: string, action?: TransitionAction, limit?: number, extraHttpRequestParams?: any): Observable<Array<AuditEntry>>;
 
 }
