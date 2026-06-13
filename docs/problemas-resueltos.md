@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-06-13 — Auditoría Fase 4
+
+### 25. Una excepción no manejada rompe el esquema de error del contrato — RESUELTO
+- **Problema:** solo `ApiError` y validación tenían handler; un bug o dependencia caída caía al `{"detail": "Internal Server Error"}` por defecto de FastAPI, que no es el esquema `code/message` del contrato. Schemathesis (Fase 6) lo iba a cazar.
+- **Solución:** handler global `@app.exception_handler(Exception)` → `500 {code: INTERNAL}` en ambos servicios, con `logger.exception` (el correlation ID lo inyecta el formatter).
+- **Cómo evitarlo:** el handler genérico es parte del scaffold de cualquier servicio nuevo. En tests usar `TestClient(app, raise_server_exceptions=False)` para ver la respuesta en vez de que propague.
+
+### 24. Redis caído ejecutaba mutaciones sin garantía de idempotencia — RESUELTO
+- **Problema:** si Redis no respondía, `claim()` lanzaba `ConnectionError` → 500 críptico; peor, conceptualmente la operación podía re-ejecutarse sin protección.
+- **Solución:** `IdempotencyUnavailableError` → `503 SERVICE_UNAVAILABLE` (fail-closed): sin store de idempotencia NO se muta el estado. Nuevo en el contrato.
+- **Cómo evitarlo:** toda mutación que dependa de un recurso externo para su corrección debe decidir explícitamente fail-open vs fail-closed. En banca, fail-closed.
+
+### 23. `release()` de idempotencia podía enmascarar el error original — RESUELTO
+- **Problema:** si la operación fallaba y además Redis fallaba al liberar la clave, la excepción de Redis tapaba la causa real en el log.
+- **Solución:** `try/except RedisError: pass` en `release()` — el caller ya propaga el error verdadero.
+
+---
+
 ## 2026-06-13 — Auditoría Fase 3 (hallazgo del usuario: spinner pegado)
 
 ### 22. Queries canceladas por el frontend siguen corriendo en Mongo y se acumulan — RESUELTO

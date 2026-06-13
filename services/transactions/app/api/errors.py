@@ -5,11 +5,15 @@ tanto el contrato como el candado anti-drift. Estos handlers fuerzan el formato
 del contrato en todos los caminos de error.
 """
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.domain.models import Error, ErrorDetail
+
+logger = logging.getLogger("api.error")
 
 
 class ApiError(Exception):
@@ -38,3 +42,16 @@ def register_error_handlers(app: FastAPI) -> None:
         ]
         body = Error(code="VALIDATION_ERROR", message="Parámetros inválidos.", details=details)
         return JSONResponse(status_code=422, content=body.model_dump(exclude_none=True))
+
+    @app.exception_handler(Exception)
+    async def unhandled_handler(_: Request, exc: Exception) -> JSONResponse:
+        # Red de seguridad: cualquier excepción no manejada (bug, dependencia
+        # caída) responde con el esquema del contrato, no el detail por defecto
+        # de FastAPI. El log lleva el correlation ID (lo inyecta el formatter).
+        logger.exception("Excepción no manejada: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content=Error(code="INTERNAL", message="Error interno del servidor.").model_dump(
+                exclude_none=True
+            ),
+        )

@@ -174,6 +174,7 @@ README.md               # diagrama de arquitectura + narrativa de decisiones
 - **Un solo aggregation pipeline con `$facet`** para traer todas las métricas en una pasada — no cinco queries separadas al dashboard.
 - **Cache Redis con TTL corto (30-60s) en los endpoints de agregados.** Aquí sí tiene sentido: la invalidación es por tiempo (no por evento), el resultado es un objeto pequeño, y correr el aggregation pipeline sobre 500k en cada carga del dashboard degrada sin necesidad.
 - Gráficos con ng2-charts/Chart.js.
+- **"Mi actividad" (accountability por actor — pregunta del usuario, Fase 4):** un supervisor necesita ver qué transacciones envió a revisión / aprobó / rechazó *él*, distinto de la bandeja compartida (`status=EN_REVISION`). La fuente correcta es la **auditoría**, no `reviewedBy`: con varios supervisores, `reviewedBy` guarda solo el último actor, así que "yo envié a revisión y otro aprobó" se pierde; la auditoría guarda el `actor` en cada paso (append-only) y no se pierde. Falta solo poder consultarla cruzando transacciones por actor (hoy `/audit` es por-transacción) + índice `(actor, at)`. Decisión de negocio que conlleva: supervisor ve lo suyo; el rol `auditor` ve el historial de todos (accountability vs. need-to-know). El correlation ID ya persistido en cada entrada (auditoría Fase 4) suma trazabilidad forense.
 - **Hito:** dashboard carga todas las métricas en una pasada; un segundo reload sirve desde cache; los números son coherentes con el seed.
 
 ### Fase 6 — DevOps y observabilidad: contenedores, CI/CD, orquestación
@@ -238,6 +239,14 @@ Dos proyectos, dos mensajes complementarios:
 Para SONDA específicamente, el segundo es el que abre la puerta; el primero es el que te hace memorable una vez dentro.
 
 ## Registro de cambios
+
+### v1.6 → v1.7 (auditoría post-Fase 4 — 2026-06-13)
+
+1. **Handler global de `Exception` → `500 {code: INTERNAL}`** en ambos servicios: una excepción no manejada ya no escapa al `detail` por defecto de FastAPI; cumple el esquema del contrato (lo iba a cazar Schemathesis en Fase 6) y loguea con correlation ID.
+2. **Redis caído → `503 SERVICE_UNAVAILABLE` (fail-closed)** en transiciones: sin store de idempotencia NO se muta el estado. Re-ejecutar una transición sin esa garantía es peor que rechazarla con un mensaje accionable. Nuevo en el contrato.
+3. **Correlation ID persistido en cada entrada de auditoría** (solo en Mongo; el response model lo filtra): del click del operador al registro inmutable, todo enlazado por un id. Cimiento de la feature "Mi actividad" de Fase 5.
+4. **`release()` de idempotencia tolera fallos de Redis:** no enmascara la excepción original que gatilló el release.
+5. **Feature "Mi actividad" documentada en Fase 5** (pregunta del usuario): accountability por actor sobre la auditoría, no sobre `reviewedBy`.
 
 ### v1.5 → v1.6 (auditoría post-Fase 3 — 2026-06-13, gatillada por hallazgo del usuario)
 

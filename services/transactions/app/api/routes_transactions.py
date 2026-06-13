@@ -112,6 +112,7 @@ async def get_transaction(
         404: ERROR_404,
         409: {"model": Error},
         422: {"model": Error},
+        503: {"model": Error},
     },
 )
 async def transition_transaction(

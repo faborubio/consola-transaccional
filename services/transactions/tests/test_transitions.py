@@ -207,6 +207,58 @@ class _FailingAudit:
         raise RuntimeError("crash simulado entre la escritura de estado y la auditoría")
 
 
+class _DownRedis:
+    """Simula Redis caído: toda operación lanza ConnectionError."""
+
+    async def set(self, *_a, **_k):
+        from redis.exceptions import ConnectionError as RedisConnError
+
+        raise RedisConnError("Connection refused")
+
+    async def get(self, *_a, **_k):
+        from redis.exceptions import ConnectionError as RedisConnError
+
+        raise RedisConnError("Connection refused")
+
+    async def delete(self, *_a, **_k):
+        from redis.exceptions import ConnectionError as RedisConnError
+
+        raise RedisConnError("Connection refused")
+
+
+async def test_redis_caido_falla_cerrado_503():
+    """Sin store de idempotencia NO se muta el estado (fail-closed)."""
+    txn_id = await _insert()
+    broken = TransitionsService(idempotency=IdempotencyStore(client=_DownRedis()))
+    with pytest.raises(TransitionError) as exc:
+        await broken.execute(
+            txn_id=txn_id, action=A.APROBAR, expected_version=1,
+            reason=None, actor_id=CHECKER, idempotency_key=_key(),
+        )
+    assert exc.value.status_code == 503
+    assert exc.value.code == "SERVICE_UNAVAILABLE"
+    doc = await TransactionsRepository().find_by_id(txn_id)
+    assert doc["status"] == "PENDIENTE" and doc["version"] == 1
+
+
+async def test_auditoria_guarda_correlation_id(service):
+    """El correlation ID del request queda en la entrada de auditoría
+    (trazabilidad forense), aunque el contrato no lo exponga."""
+    from app.observability import correlation_id
+
+    txn_id = await _insert()
+    token = correlation_id.set("corr-test-abc123")
+    try:
+        await service.execute(
+            txn_id=txn_id, action=A.APROBAR, expected_version=1,
+            reason=None, actor_id=CHECKER, idempotency_key=_key(),
+        )
+    finally:
+        correlation_id.reset(token)
+    raw = await get_db()["audit_entries"].find_one({"transactionId": txn_id})
+    assert raw["correlationId"] == "corr-test-abc123"
+
+
 async def test_crash_entre_escrituras_no_deja_estado_inconsistente(service):
     """La transacción Mongo multi-documento aborta completa: si la auditoría
     no se pudo escribir, el cambio de estado TAMPOCO queda."""

@@ -345,6 +345,19 @@ paths:
                   value: { code: IDEMPOTENCY_CONFLICT, message: 'La clave de idempotencia ya fue usada con otro payload.' }
         '422':
           $ref: '#/components/responses/ValidationError'
+        '503':
+          description: >
+            Servicio temporalmente no disponible. El store de idempotencia
+            (Redis) no responde: por seguridad NO se ejecuta la mutación
+            (fail-closed) — re-ejecutar sin garantía de idempotencia es peor
+            que rechazar con un mensaje accionable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: SERVICE_UNAVAILABLE
+                message: 'Servicio temporalmente no disponible; reintente en unos segundos.'
 
 components:
 

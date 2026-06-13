@@ -17,6 +17,7 @@ import json
 from typing import Any
 
 import redis.asyncio as aioredis
+from redis.exceptions import RedisError
 
 from app.config import get_settings
 
@@ -53,6 +54,12 @@ class PayloadMismatchError(Exception):
     """La clave ya fue usada con un payload distinto."""
 
 
+class IdempotencyUnavailableError(Exception):
+    """Redis no responde. Sin store de idempotencia NO se ejecutan mutaciones
+    (fail-closed): re-ejecutar una transición sin esa garantía es peor que
+    rechazarla con un mensaje claro."""
+
+
 class IdempotencyStore:
     def __init__(self, client: aioredis.Redis | None = None) -> None:
         self.redis = client or get_redis()
@@ -64,10 +71,13 @@ class IdempotencyStore:
     async def claim(self, key: str, request_hash: str) -> dict | None:
         """Reserva la clave. Devuelve None si la reservamos (hay que ejecutar),
         o la respuesta guardada si ya se ejecutó con el mismo payload."""
-        claimed = await self.redis.set(self._key(key), PROCESSING, nx=True, ex=CLAIM_TTL_S)
-        if claimed:
-            return None
-        stored = await self.redis.get(self._key(key))
+        try:
+            claimed = await self.redis.set(self._key(key), PROCESSING, nx=True, ex=CLAIM_TTL_S)
+            if claimed:
+                return None
+            stored = await self.redis.get(self._key(key))
+        except RedisError as exc:
+            raise IdempotencyUnavailableError from exc
         if stored is None or stored == PROCESSING:
             raise AlreadyProcessingError
         record = json.loads(stored)
@@ -83,5 +93,10 @@ class IdempotencyStore:
         )
 
     async def release(self, key: str) -> None:
-        """Libera la reserva cuando la operación falla: el reintento es legítimo."""
-        await self.redis.delete(self._key(key))
+        """Libera la reserva cuando la operación falla: el reintento es legítimo.
+        Tolera fallos de Redis: NO debe enmascarar la excepción original que
+        gatilló el release (el caller ya está propagando ese error)."""
+        try:
+            await self.redis.delete(self._key(key))
+        except RedisError:
+            pass

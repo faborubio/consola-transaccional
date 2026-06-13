@@ -18,10 +18,12 @@ from datetime import UTC, datetime
 
 from app.domain.models import Transaction, TransitionAction
 from app.domain.state_machine import REQUIRES_REASON, next_status
+from app.observability import correlation_id
 from app.repository.transactions_repo import StaleVersionError, TransactionsRepository
 from app.services.idempotency import (
     AlreadyProcessingError,
     IdempotencyStore,
+    IdempotencyUnavailableError,
     PayloadMismatchError,
     payload_hash,
 )
@@ -73,6 +75,13 @@ class TransitionsService:
                 409,
                 "IDEMPOTENCY_CONFLICT",
                 "La clave de idempotencia ya fue usada con otro payload.",
+            ) from None
+        except IdempotencyUnavailableError:
+            # Fail-closed: sin garantía de idempotencia no se muta el estado.
+            raise TransitionError(
+                503,
+                "SERVICE_UNAVAILABLE",
+                "Servicio temporalmente no disponible; reintente en unos segundos.",
             ) from None
         if stored is not None:
             # Reintento legítimo: se devuelve el resultado original sin re-ejecutar.
@@ -143,6 +152,10 @@ class TransitionsService:
                     "actor": actor_id,
                     "reason": reason,
                     "at": now,
+                    # Trazabilidad forense: enlaza la entrada con los logs del
+                    # request (mismo id que viajó del click al servidor). No se
+                    # expone en el contrato; el response model lo filtra.
+                    "correlationId": correlation_id.get(),
                 },
             )
         except StaleVersionError:

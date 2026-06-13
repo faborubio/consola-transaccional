@@ -85,6 +85,22 @@ def test_query_timeout_responde_503():
         app.dependency_overrides.clear()
 
 
+def test_excepcion_no_manejada_usa_esquema_del_contrato():
+    """Una excepción inesperada (bug, dependencia caída) responde 500 con el
+    esquema code/message, no el 'detail' por defecto de FastAPI."""
+    mock = AsyncMock()
+    mock.list_transactions.side_effect = RuntimeError("boom inesperado")
+    app.dependency_overrides[get_service] = lambda: mock
+    # raise_server_exceptions=False: queremos la respuesta JSON, no que propague
+    local = TestClient(app, raise_server_exceptions=False)
+    try:
+        res = local.get("/transactions", headers=HEADERS)
+        assert res.status_code == 500
+        assert res.json() == {"code": "INTERNAL", "message": "Error interno del servidor."}
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_not_found_uses_contract_schema():
     mock = AsyncMock()
     mock.get_transaction.return_value = None
