@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # cancela su request pero el servidor seguiría ejecutando la query.
     query_timeout_ms: int = 10_000
 
+    # Redis: claves de idempotencia (SET NX atómico).
+    redis_uri: str = "redis://localhost:6379/0"
+
     # Clave PÚBLICA RS256: este servicio solo verifica tokens; jamás los emite.
     # PEM inline (tests) o ruta a archivo (compose monta infra/keys/jwt-public.pem).
     jwt_public_key: str | None = None

@@ -19,11 +19,14 @@ services:
       TXN_MONGO_DB: transactions_db
       # Solo la clave PÚBLICA: este servicio verifica tokens, no los emite.
       TXN_JWT_PUBLIC_KEY_FILE: /keys/jwt-public.pem
+      TXN_REDIS_URI: redis://redis:6379/0
     volumes:
       - ./keys/jwt-public.pem:/keys/jwt-public.pem:ro
     depends_on:
       mongo-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_started
     networks: [backend]
 
   auth:

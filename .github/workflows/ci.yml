@@ -67,11 +67,11 @@ jobs:
           uv sync --frozen
           PYTHONPATH=. uv run python scripts/export_openapi.py > /tmp/auth-openapi.json
       - name: Diff transactions contra contracts/openapi.yaml
-        # La superficie comparada crece por fase; /transitions entra en Fase 4.
+        # Superficie completa de transactions (Fase 4 incluyó /transitions).
         run: |
           uv run --script infra/ci/check_drift.py \
             contracts/openapi.yaml /tmp/txn-openapi.json \
-            --match-path '^/(health$|transactions$|transactions/\{id\}(/audit)?$)'
+            --match-path '^/(health$|transactions$|transactions/\{id\}(/audit|/transitions)?$)'
       - name: Diff auth contra contracts/openapi.yaml
         run: |
           uv run --script infra/ci/check_drift.py \

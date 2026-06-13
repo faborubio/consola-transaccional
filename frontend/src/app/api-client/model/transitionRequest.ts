@@ -19,7 +19,7 @@ export interface TransitionRequest {
     /**
      * Motivo (obligatorio para RECHAZAR y REVERTIR a nivel de lógica).
      */
-    reason?: string;
+    reason?: string | null;
 }
 export namespace TransitionRequest {
 }

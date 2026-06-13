@@ -82,6 +82,12 @@ class AuditEntry(BaseModel):
     at: datetime
 
 
+class TransitionRequest(BaseModel):
+    action: TransitionAction
+    expectedVersion: int
+    reason: str | None = None
+
+
 class ErrorDetail(BaseModel):
     field: str | None = None
     issue: str | None = None

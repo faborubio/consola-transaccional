@@ -86,6 +86,21 @@ Verificación rápida: `curl http://localhost:8080/health` y
   aquí. Si el requisito fuera revocación inmediata (v2), este es el punto de
   entrada documentado.
 
+### Qué cambiaría a escala real (lectura honesta)
+
+Este sistema opera 500k documentos (~1GB, cabe en RAM) con un operador. Un
+core bancario real maneja miles de millones de filas y ~10.000 sesiones
+concurrentes — 3 y 4 órdenes de magnitud más. A esa escala aparecen piezas
+que aquí no existen: particionamiento caliente/frío (la consola opera sobre
+90 días; lo histórico vive en otro tier), búsqueda en motor dedicado
+alimentado por CDC (nunca regex contra el store transaccional), réplicas de
+lectura/CQRS y agregados materializados. **Lo que no cambia son los
+patrones**: cursor compuesto (no offset), conteo estimado (no exacto),
+búsqueda por prefijo acotado, `maxTimeMS` con fallo rápido accionable,
+idempotencia y auditoría atómica — son los mismos a cualquier escala; lo que
+se reemplaza alrededor es infraestructura. Un diseño basado en
+`OFFSET`/`COUNT(*)`/substring sí se tira entero al crecer.
+
 Plan completo de fases: [docs/plan-consola-transaccional-sonda.md](docs/plan-consola-transaccional-sonda.md).
 Registro de problemas → causa → solución: [docs/problemas-resueltos.md](docs/problemas-resueltos.md).
 
@@ -108,8 +123,13 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   deep-linkeable y con botón atrás; vista de detalle con historial de
   auditoría; errores del API mapeados a mensajes de operador (toasts
   ng-bootstrap); 16 tests de frontend
-- [ ] Fase 4 — Flujo transaccional: máquina de estados, maker-checker,
-  idempotencia, bloqueo optimista, auditoría atómica
+- [x] **Fase 4 — Flujo transaccional (el corazón):** máquina de estados como
+  datos con test exhaustivo (loop 5 estados × 4 acciones); maker-checker
+  validado contra el actor del token; idempotencia con `SET NX` atómico
+  (reintento devuelve el resultado original; concurrencia → una sola
+  ejecución); bloqueo optimista (`409 STALE_VERSION`); estado + auditoría en
+  UNA transacción Mongo — un crash simulado entre escrituras no deja
+  inconsistencia; acciones de supervisor en la consola con manejo de 409
 - [ ] Fase 5 — Dashboard con `$facet` + cache Redis TTL
 - [ ] Fase 6 — K8s, Schemathesis con auth, logs estructurados + correlation ID
 - [ ] Fase 7 — Playwright, k6, narrativa completa

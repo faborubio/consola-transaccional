@@ -170,7 +170,7 @@ export class TransactionsService extends BaseService implements TransactionsServ
      * @param minAmount 
      * @param maxAmount 
      * @param currency 
-     * @param counterparty Búsqueda por prefijo (insensible a mayúsculas) sobre el nombre o el número de cuenta de la contraparte, origen o destino. Es prefijo y no substring por diseño: el prefijo usa índice; un substring a volumen requeriría full-text search (descartado en v1). 
+     * @param counterparty Búsqueda por prefijo (insensible a mayúsculas) sobre el nombre o el número de cuenta de la contraparte, origen o destino. Es prefijo y no substring por diseño: el prefijo usa índice; un substring a volumen requeriría full-text search (descartado en v1). Mínimo 3 caracteres: un prefijo más corto matchea una fracción enorme del índice multikey y degrada el sistema completo. 
      * @param dateFrom 
      * @param dateTo 
      * @param sort Campo y dirección, p. ej. &#x60;-createdAt&#x60; (desc) o &#x60;amount&#x60; (asc).

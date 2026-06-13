@@ -71,6 +71,55 @@
         </div>
       </div>
 
+      @if (isSupervisor && actionsFor(txn.status).length > 0) {
+        <div class="card mb-4 border-primary-subtle">
+          <div class="card-header py-2 small fw-semibold">
+            Acciones de supervisor
+            <span class="text-secondary fw-normal">
+              — maker-checker: no puede aprobar transacciones iniciadas por usted
+            </span>
+          </div>
+          <div class="card-body py-3">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="reason">
+                  Motivo (obligatorio para rechazar o revertir)
+                </label>
+                <input
+                  id="reason"
+                  class="form-control form-control-sm"
+                  [(ngModel)]="reason"
+                  placeholder="Ej: inconsistencia en cuenta destino"
+                />
+              </div>
+              <div class="col-md-6 d-flex gap-2 flex-wrap">
+                @for (action of actionsFor(txn.status); track action) {
+                  <button
+                    class="btn btn-sm"
+                    [class.btn-success]="action === 'APROBAR'"
+                    [class.btn-danger]="action === 'RECHAZAR'"
+                    [class.btn-info]="action === 'ENVIAR_A_REVISION'"
+                    [class.btn-warning]="action === 'REVERTIR'"
+                    [disabled]="pending()"
+                    (click)="submit(txn, action)"
+                  >
+                    @if (pending()) {
+                      <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    {{ label(action) }}
+                  </button>
+                }
+              </div>
+              @if (actionError(); as msg) {
+                <div class="col-12">
+                  <div class="alert alert-danger py-1 px-2 small mb-0">{{ msg }}</div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
       <h2 class="h5 mb-3">Historial de auditoría</h2>
       <div class="table-responsive">
         <table class="table table-sm align-middle">

@@ -583,6 +583,7 @@ components:
           example: 3
         reason:
           type: string
+          nullable: true
           description: Motivo (obligatorio para RECHAZAR y REVERTIR a nivel de lógica).
           example: 'Inconsistencia en cuenta destino.'
 

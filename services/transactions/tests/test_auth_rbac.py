@@ -43,6 +43,31 @@ def test_health_sigue_publico():
     assert client.get("/health").status_code == 200
 
 
+def test_operador_no_puede_transicionar():
+    """El hito de Fase 2, ahora sobre el endpoint real de Fase 4."""
+    res = client.post(
+        "/transactions/txn_x/transitions",
+        json={"action": "APROBAR", "expectedVersion": 1},
+        headers={
+            **auth_headers(["operador"]),
+            "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
+        },
+    )
+    assert res.status_code == 403
+    assert res.json()["code"] == "FORBIDDEN_ROLE"
+
+
+def test_transicion_sin_idempotency_key_422():
+    res = client.post(
+        "/transactions/txn_x/transitions",
+        json={"action": "APROBAR", "expectedVersion": 1},
+        headers=auth_headers(["supervisor"]),
+    )
+    assert res.status_code == 422
+    assert any("idempotency-key" in (d.get("field") or "").lower()
+               for d in res.json()["details"])
+
+
 # --- require_role: probado sobre un endpoint protegido real ---
 # (el primer endpoint de negocio con rol llega en Fase 4 — /transitions;
 #  la dependency se valida aquí con una ruta mínima)

@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Header, Path, Query
 from pymongo.errors import ExecutionTimeout
 
-from app.api.auth import current_user
+from app.api.auth import AuthContext, current_user, require_role
 from app.api.errors import ApiError
 from app.domain.models import (
     AuditEntry,
@@ -13,9 +14,11 @@ from app.domain.models import (
     TransactionPage,
     TransactionStatus,
     TransactionType,
+    TransitionRequest,
 )
 from app.services.pagination import InvalidCursorError, InvalidSortError
 from app.services.transactions_service import TransactionsService
+from app.services.transitions_service import TransitionError, TransitionsService
 
 router = APIRouter(
     prefix="/transactions",
@@ -31,6 +34,10 @@ TransactionId = Annotated[str, Path(description="Identificador de la transacció
 
 def get_service() -> TransactionsService:
     return TransactionsService()
+
+
+def get_transitions_service() -> TransitionsService:
+    return TransitionsService()
 
 
 @router.get(
@@ -92,6 +99,45 @@ async def get_transaction(
     if txn is None:
         raise ApiError(404, "NOT_FOUND", "Transacción no encontrada.")
     return txn
+
+
+@router.post(
+    "/{id}/transitions",
+    operation_id="transitionTransaction",
+    summary="Ejecutar una transición de estado (aprobar, rechazar, revisar, revertir)",
+    response_model=Transaction,
+    responses={
+        401: ERROR_401,
+        403: {"model": Error},
+        404: ERROR_404,
+        409: {"model": Error},
+        422: {"model": Error},
+    },
+)
+async def transition_transaction(
+    id: TransactionId,  # noqa: A002
+    body: TransitionRequest,
+    idempotency_key: Annotated[
+        UUID,
+        Header(
+            alias="Idempotency-Key",
+            description="Clave única (UUID) por intento de operación.",
+        ),
+    ],
+    user: Annotated[AuthContext, Depends(require_role("supervisor"))],
+    service: Annotated[TransitionsService, Depends(get_transitions_service)],
+) -> Transaction:
+    try:
+        return await service.execute(
+            txn_id=id,
+            action=body.action,
+            expected_version=body.expectedVersion,
+            reason=body.reason,
+            actor_id=user.user_id,
+            idempotency_key=str(idempotency_key),
+        )
+    except TransitionError as exc:
+        raise ApiError(exc.status_code, exc.code, exc.message) from exc
 
 
 @router.get(

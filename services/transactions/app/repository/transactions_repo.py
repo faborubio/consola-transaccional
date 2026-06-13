@@ -9,7 +9,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from pymongo import AsyncMongoClient
+from pymongo import AsyncMongoClient, ReturnDocument
 
 from app.config import get_settings
 
@@ -19,12 +19,19 @@ AUDIT = "audit_entries"
 _client: AsyncMongoClient | None = None
 
 
-def get_db():
+class StaleVersionError(Exception):
+    """El documento cambió desde que el cliente lo leyó (bloqueo optimista)."""
+
+
+def get_client() -> AsyncMongoClient:
     global _client
-    settings = get_settings()
     if _client is None:
-        _client = AsyncMongoClient(settings.mongo_uri, serverSelectionTimeoutMS=5000)
-    return _client[settings.mongo_db]
+        _client = AsyncMongoClient(get_settings().mongo_uri, serverSelectionTimeoutMS=5000)
+    return _client
+
+
+def get_db():
+    return get_client()[get_settings().mongo_db]
 
 
 async def close_client() -> None:
@@ -68,6 +75,38 @@ class TransactionsRepository:
     async def audit_for(self, txn_id: str) -> list[dict]:
         cursor = self.audit.find({"transactionId": txn_id}).sort("at", 1)
         return await cursor.to_list(length=None)
+
+    async def apply_transition(
+        self,
+        txn_id: str,
+        expected_version: int,
+        update_fields: dict[str, Any],
+        audit_doc: dict[str, Any],
+    ) -> dict:
+        """Estado + auditoría en UNA transacción Mongo (requiere replica set).
+
+        Sin la sesión transaccional, un crash entre las dos escrituras deja el
+        registro inconsistente — una auditoría que puede mentir es peor que no
+        tener auditoría.
+
+        El update filtra por versión (bloqueo optimista): si otro actor mutó
+        el documento entremedio, no matchea, y se responde StaleVersionError
+        — la transacción completa se aborta.
+        """
+        client = get_client()
+        async with client.start_session() as session:
+            async with await session.start_transaction():
+                doc = await self.transactions.find_one_and_update(
+                    {"_id": txn_id, "version": expected_version},
+                    {"$set": update_fields, "$inc": {"version": 1}},
+                    return_document=ReturnDocument.AFTER,
+                    session=session,
+                )
+                if doc is None:
+                    # aborta la transacción al salir por excepción
+                    raise StaleVersionError(txn_id)
+                await self.audit.insert_one(audit_doc, session=session)
+        return doc
 
     async def ensure_indexes(self) -> None:
         """Índices ESR para los patrones de acceso dominantes (ver Fase 1)."""

@@ -8,6 +8,7 @@ import {
   TransactionPage,
   TransactionStatus,
   TransactionType,
+  TransitionAction,
 } from '../api-client';
 
 /**
@@ -57,5 +58,20 @@ export class TransactionsApiService {
 
   audit(id: string): Observable<AuditEntry[]> {
     return this.client.getTransactionAudit(id);
+  }
+
+  /** La Idempotency-Key se genera AQUÍ, una por intento: un doble click o un
+   * reintento de red reusan la misma request del cliente HTTP, no este método. */
+  transition(
+    id: string,
+    action: TransitionAction,
+    expectedVersion: number,
+    reason?: string,
+  ): Observable<Transaction> {
+    return this.client.transitionTransaction(id, crypto.randomUUID(), {
+      action,
+      expectedVersion,
+      reason,
+    });
   }
 }
