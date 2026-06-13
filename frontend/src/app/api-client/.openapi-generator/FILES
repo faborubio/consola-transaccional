@@ -7,6 +7,8 @@ api/auth.service.ts
 api/auth.serviceInterface.ts
 api/health.service.ts
 api/health.serviceInterface.ts
+api/metrics.service.ts
+api/metrics.serviceInterface.ts
 api/transactions.service.ts
 api/transactions.serviceInterface.ts
 configuration.ts
@@ -14,14 +16,17 @@ encoder.ts
 git_push.sh
 index.ts
 model/auditEntry.ts
+model/dashboardMetrics.ts
 model/errorDetailsInner.ts
 model/getHealth200Response.ts
 model/loginRequest.ts
 model/modelError.ts
 model/models.ts
+model/monthBucket.ts
 model/party.ts
 model/refreshTokenRequest.ts
 model/role.ts
+model/statusBucket.ts
 model/tokenPair.ts
 model/transaction.ts
 model/transactionPage.ts

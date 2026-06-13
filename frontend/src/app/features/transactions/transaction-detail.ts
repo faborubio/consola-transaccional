@@ -14,6 +14,7 @@ import {
 import { TokenStore } from '../../core/token-store.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { describeApiError } from '../../shared/api-error';
+import { Nav } from '../../shared/nav';
 import { ToastService } from '../../shared/toast.service';
 
 interface DetailVm {
@@ -42,7 +43,7 @@ const ACTION_LABELS: Record<TransitionAction, string> = {
 
 @Component({
   selector: 'app-transaction-detail',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, Nav],
   templateUrl: './transaction-detail.html',
 })
 export class TransactionDetail {

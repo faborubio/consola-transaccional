@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
 import {
   BehaviorSubject,
   Subject,
@@ -26,8 +26,8 @@ import {
   TransactionFilters as Filters,
   TransactionsApiService,
 } from '../../services/transactions-api.service';
-import { AuthApiService } from '../../services/auth-api.service';
 import { describeApiError } from '../../shared/api-error';
+import { Nav } from '../../shared/nav';
 import { TransactionFilters } from './transaction-filters';
 
 interface ListVm {
@@ -72,14 +72,12 @@ export function paramsToFilters(params: ParamMap): Filters {
 
 @Component({
   selector: 'app-transaction-list',
-  imports: [CommonModule, RouterLink, TransactionFilters],
+  imports: [CommonModule, RouterLink, TransactionFilters, Nav],
   templateUrl: './transaction-list.html',
 })
 export class TransactionList {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly api = inject(TransactionsApiService);
-  private readonly authApi = inject(AuthApiService);
 
   // "Cargar más": el cursor es estado efímero de paginación, no va a la URL.
   private readonly loadMore$ = new Subject<string>();
@@ -136,11 +134,6 @@ export class TransactionList {
     if (this.nextCursor) {
       this.loadMore$.next(this.nextCursor);
     }
-  }
-
-  protected logout(): void {
-    this.authApi.logout();
-    void this.router.navigate(['/login']);
   }
 
   protected statusBadge(status: TransactionStatus): string {

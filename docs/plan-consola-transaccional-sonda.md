@@ -240,6 +240,13 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.7 → v1.8 (Fase 5 — 2026-06-13)
+
+1. **Dashboard sin `$facet`, contra lo que el plan pedía — con evidencia.** Medido sobre 500k: `$facet` 69s vs dos `$group` separados 1.2s (55×). `$facet` materializa todo en memoria y no usa índices. Los rollups corren en paralelo (`asyncio.gather`); el total se deriva de los conteos por estado. El cache Redis (TTL 30s) sigue: MISS 0.9s, HIT 0.07s. **Corrección del plan**: la regla pasa a ser "agregaciones separadas que puedan usar índices > un `$facet` sobre toda la colección".
+2. **"Mi actividad" implementada** (pregunta del usuario): `GET /activity` sobre la auditoría por actor (índice `actor, at`), con filtro por acción. Responde "qué envié a revisión / aprobé / rechacé" de forma estable con varios supervisores.
+3. **Header `X-Cache: HIT/MISS`** (fuera del contrato) hace observable el cache en la demo.
+4. **`ng2-charts` 10 + Chart.js** para los gráficos; `@angular/cdk` pinado a v21 (mismo motivo que ng-bootstrap).
+
 ### v1.6 → v1.7 (auditoría post-Fase 4 — 2026-06-13)
 
 1. **Handler global de `Exception` → `500 {code: INTERNAL}`** en ambos servicios: una excepción no manejada ya no escapa al `detail` por defecto de FastAPI; cumple el esquema del contrato (lo iba a cazar Schemathesis en Fase 6) y loguea con correlation ID.

@@ -70,6 +70,10 @@ Verificación rápida: `curl http://localhost:8080/health` y
 - **Búsqueda de contraparte por prefijo, no substring:** el prefijo anclado
   sobre un campo normalizado (`searchKeys`, índice multikey) usa índice; un
   substring a volumen sería COLLSCAN siempre (full-text descartado en v1).
+- **Dashboard sin `$facet` (medido, no asumido):** sobre 500k, `$facet` tardó
+  69s (materializa todo en memoria, sin índices) vs 1.2s con dos `$group`
+  separados en paralelo. "Una sola pasada" suena eficiente pero es 55× peor
+  aquí; `$facet` sirve tras un `$match` selectivo, no para barrer la colección.
 - **JWT RS256:** solo `auth` posee la clave privada; `transactions` y el
   gateway verifican con la pública — ningún otro servicio puede emitir tokens.
 - **Rotación de refresh tokens con detección de reuso:** cada refresh emite un
@@ -130,6 +134,10 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   ejecución); bloqueo optimista (`409 STALE_VERSION`); estado + auditoría en
   UNA transacción Mongo — un crash simulado entre escrituras no deja
   inconsistencia; acciones de supervisor en la consola con manejo de 409
-- [ ] Fase 5 — Dashboard con `$facet` + cache Redis TTL
+- [x] **Fase 5 — Dashboard y métricas:** KPIs (total, tasa de aprobación, en
+  revisión) + gráficos (Chart.js) de volumen por estado y por mes; rollups con
+  cache Redis (TTL 30s, header `X-Cache`: MISS 0.9s → HIT 0.07s). **Medimos y
+  descartamos `$facet`**: 69s vs 1.2s con `$group` separados sobre 500k (ver
+  decisión abajo). "Mi actividad": acciones por actor leídas de la auditoría
 - [ ] Fase 6 — K8s, Schemathesis con auth, logs estructurados + correlation ID
 - [ ] Fase 7 — Playwright, k6, narrativa completa

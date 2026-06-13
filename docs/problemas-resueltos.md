@@ -7,6 +7,16 @@
 
 ---
 
+## 2026-06-13 — Fase 5
+
+### 26. `$facet` es 55× más lento que dos `$group` separados sobre 500k — RESUELTO
+- **Problema:** el dashboard con `$facet` (que el plan pedía como "una sola pasada") tardaba **69s** sobre 500k → 504 del gateway y `ExecutionTimeout`. Los mismos `$group` por separado: **1.2s** en total.
+- **Causa:** `$facet` materializa toda su entrada en memoria y sus sub-pipelines **no usan índices ni streaming**. La intuición "una pasada < N queries" es falsa cuando esa pasada es un `$facet` sobre una colección grande.
+- **Solución:** se eliminó `$facet`; los rollups (por estado, por mes) corren como `$group` separados en paralelo (`asyncio.gather`), ~1.2s. El total se deriva de los conteos por estado (una query menos). Medido en vivo: MISS 0.9s, HIT 0.07s.
+- **Cómo evitarlo:** `$facet` sirve para reutilizar un sub-conjunto YA filtrado (tras un `$match` selectivo), no para escanear toda la colección en paralelo. A volumen, medir antes de asumir; preferir agregaciones que puedan usar índices.
+
+---
+
 ## 2026-06-13 — Auditoría Fase 4
 
 ### 25. Una excepción no manejada rompe el esquema de error del contrato — RESUELTO

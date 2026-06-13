@@ -88,6 +88,27 @@ class TransitionRequest(BaseModel):
     reason: str | None = None
 
 
+class StatusBucket(BaseModel):
+    status: TransactionStatus
+    count: int
+    totalAmount: float
+
+
+class MonthBucket(BaseModel):
+    month: str
+    count: int
+    totalAmount: float
+
+
+class DashboardMetrics(BaseModel):
+    byStatus: list[StatusBucket]
+    byMonth: list[MonthBucket]
+    totalCount: int
+    approvalRate: float
+    inReview: int
+    generatedAt: datetime
+
+
 class ErrorDetail(BaseModel):
     field: str | None = None
     issue: str | None = None

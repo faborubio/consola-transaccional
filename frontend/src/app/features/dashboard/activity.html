@@ -1,0 +1,69 @@
+<app-nav />
+
+<div class="container py-4">
+  <h1 class="h3 mb-1">Mi actividad</h1>
+  <p class="text-secondary small mb-4">
+    Acciones que ejecutaste, leídas del log de auditoría — estable aunque otro
+    supervisor opere la misma transacción después.
+  </p>
+
+  <div class="mb-3" style="max-width: 18rem">
+    <label class="form-label small mb-1" for="act">Filtrar por acción</label>
+    <select id="act" class="form-select form-select-sm" (change)="setFilter($any($event.target).value)">
+      <option value="">Todas mis acciones</option>
+      <option value="APROBAR">Aprobaciones</option>
+      <option value="RECHAZAR">Rechazos</option>
+      <option value="ENVIAR_A_REVISION">Envíos a revisión</option>
+      <option value="REVERTIR">Reversas</option>
+    </select>
+  </div>
+
+  @if (vm$ | async; as vm) {
+    @if (vm.error) {
+      <div class="alert alert-warning">{{ vm.error }}</div>
+    } @else {
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Transacción</th>
+              <th>Acción</th>
+              <th>Transición</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (e of vm.entries; track e.id) {
+              <tr>
+                <td>{{ e.at | date: 'dd-MM-yyyy HH:mm:ss' }}</td>
+                <td>
+                  <a [routerLink]="['/transactions', e.transactionId]">
+                    <code>{{ e.transactionId }}</code>
+                  </a>
+                </td>
+                <td>{{ e.action }}</td>
+                <td>
+                  <span class="badge" [class]="statusBadge(e.fromStatus)">{{ e.fromStatus }}</span>
+                  →
+                  <span class="badge" [class]="statusBadge(e.toStatus)">{{ e.toStatus }}</span>
+                </td>
+                <td>{{ e.reason ?? '—' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="text-center text-secondary py-4">
+                  Aún no registras acciones con este filtro.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+  }
+</div>

@@ -16,8 +16,14 @@ class Settings(BaseSettings):
     # cancela su request pero el servidor seguiría ejecutando la query.
     query_timeout_ms: int = 10_000
 
-    # Redis: claves de idempotencia (SET NX atómico).
+    # Redis: claves de idempotencia (SET NX atómico) y cache del dashboard.
     redis_uri: str = "redis://localhost:6379/0"
+    # TTL corto: la invalidación del dashboard es por tiempo, no por evento.
+    dashboard_cache_ttl_s: int = 30
+    # Los rollups del dashboard escanean toda la colección (bounded, sin input
+    # de usuario): ~1.2s sobre 500k con $group separados (no $facet). Tope
+    # holgado por si la base está fría; el cache amortiza el resto.
+    dashboard_timeout_ms: int = 15_000
 
     # Clave PÚBLICA RS256: este servicio solo verifica tokens; jamás los emite.
     # PEM inline (tests) o ruta a archivo (compose monta infra/keys/jwt-public.pem).

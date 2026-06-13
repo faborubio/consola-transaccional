@@ -24,6 +24,8 @@ tags:
     description: Autenticación y emisión de tokens.
   - name: transactions
     description: Consulta y operación sobre transacciones.
+  - name: metrics
+    description: Métricas agregadas y actividad por actor.
   - name: health
     description: Sondeos de salud.
 
@@ -359,6 +361,65 @@ paths:
                 code: SERVICE_UNAVAILABLE
                 message: 'Servicio temporalmente no disponible; reintente en unos segundos.'
 
+  # ---------------------------------------------------------------------------
+  # MÉTRICAS Y ACTIVIDAD
+  # ---------------------------------------------------------------------------
+  /metrics/dashboard:
+    get:
+      tags: [metrics]
+      summary: Métricas agregadas del dashboard
+      description: >
+        Todas las métricas en UNA sola pasada con un aggregation pipeline
+        `$facet` (no cinco queries). El resultado se cachea en Redis con TTL
+        corto: el segundo request dentro de la ventana se sirve del cache.
+      operationId: getDashboardMetrics
+      responses:
+        '200':
+          description: Métricas agregadas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetrics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /activity:
+    get:
+      tags: [metrics]
+      summary: Acciones del usuario en sesión (sobre la auditoría)
+      description: >
+        Historial de transiciones ejecutadas por el usuario autenticado,
+        leído del log de auditoría (no de `reviewedBy`, que solo guarda el
+        último actor). Responde la pregunta "¿qué envié a revisión / aprobé /
+        rechacé?" de forma estable aunque otro supervisor haya actuado después.
+      operationId: getMyActivity
+      parameters:
+        - name: action
+          in: query
+          description: Filtrar por un tipo de acción.
+          schema:
+            $ref: '#/components/schemas/TransitionAction'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Entradas de auditoría del actor, de la más reciente a la más antigua.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
 components:
 
   # ---------------------------------------------------------------------------
@@ -615,6 +676,43 @@ components:
           description: Usuario que ejecutó la acción.
         reason: { type: string, nullable: true }
         at: { type: string, format: date-time }
+
+    # --- Métricas ---
+    StatusBucket:
+      type: object
+      required: [status, count, totalAmount]
+      properties:
+        status: { $ref: '#/components/schemas/TransactionStatus' }
+        count: { type: integer, example: 350123 }
+        totalAmount: { type: number, format: double, example: 4521000000.0 }
+
+    MonthBucket:
+      type: object
+      required: [month, count, totalAmount]
+      properties:
+        month: { type: string, example: '2026-03' }
+        count: { type: integer, example: 41234 }
+        totalAmount: { type: number, format: double }
+
+    DashboardMetrics:
+      type: object
+      description: Métricas agregadas calculadas en una sola pasada ($facet).
+      required: [byStatus, byMonth, totalCount, approvalRate, inReview, generatedAt]
+      properties:
+        byStatus:
+          type: array
+          items: { $ref: '#/components/schemas/StatusBucket' }
+        byMonth:
+          type: array
+          items: { $ref: '#/components/schemas/MonthBucket' }
+        totalCount: { type: integer, example: 500000 }
+        approvalRate:
+          type: number
+          format: double
+          description: Aprobadas / (aprobadas + rechazadas). 0 si no hay ninguna.
+          example: 0.85
+        inReview: { type: integer, example: 25000 }
+        generatedAt: { type: string, format: date-time }
 
     Error:
       type: object

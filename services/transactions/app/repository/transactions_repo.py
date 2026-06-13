@@ -5,6 +5,7 @@ perezosa: el cliente no abre sockets hasta la primera operación, lo que permite
 levantar la app (y testear /health) sin Mongo disponible.
 """
 
+import asyncio
 import re
 from datetime import datetime
 from typing import Any
@@ -42,8 +43,10 @@ async def close_client() -> None:
 
 
 class TransactionsRepository:
-    def __init__(self) -> None:
-        db = get_db()
+    def __init__(self, db=None) -> None:
+        # db inyectable: permite aislar tests en una colección propia sin
+        # tocar los datos de desarrollo.
+        db = db if db is not None else get_db()
         self.transactions = db[TRANSACTIONS]
         self.audit = db[AUDIT]
 
@@ -108,6 +111,62 @@ class TransactionsRepository:
                 await self.audit.insert_one(audit_doc, session=session)
         return doc
 
+    async def metrics_rollups(self, timeout_ms: int) -> tuple[list[dict], list[dict]]:
+        """Devuelve (porEstado, porMes) con los dos $group ejecutados en paralelo.
+
+        NO se usa $facet a propósito: medido sobre 500k, $facet tarda ~69s
+        (materializa toda la entrada en memoria y sus sub-pipelines no usan
+        índices), mientras que los dos $group por separado tardan ~1.2s en
+        total. La intuición "una sola pasada" es falsa aquí; ver el registro
+        de problemas resueltos. El conteo total se deriva de porEstado (no
+        hace falta una tercera query).
+        """
+        by_status, by_month = await asyncio.gather(
+            self._group_by_status(timeout_ms),
+            self._group_by_month(timeout_ms),
+        )
+        return by_status, by_month
+
+    async def _group_by_status(self, timeout_ms: int) -> list[dict]:
+        cursor = await self.transactions.aggregate(
+            [
+                {
+                    "$group": {
+                        "_id": "$status",
+                        "count": {"$sum": 1},
+                        "totalAmount": {"$sum": "$amount"},
+                    }
+                }
+            ],
+            maxTimeMS=timeout_ms,
+        )
+        return await cursor.to_list(length=None)
+
+    async def _group_by_month(self, timeout_ms: int) -> list[dict]:
+        cursor = await self.transactions.aggregate(
+            [
+                {
+                    "$group": {
+                        "_id": {"$dateToString": {"format": "%Y-%m", "date": "$createdAt"}},
+                        "count": {"$sum": 1},
+                        "totalAmount": {"$sum": "$amount"},
+                    }
+                },
+                {"$sort": {"_id": 1}},
+            ],
+            maxTimeMS=timeout_ms,
+        )
+        return await cursor.to_list(length=None)
+
+    async def audit_by_actor(
+        self, actor: str, action: str | None, limit: int
+    ) -> list[dict]:
+        query: dict[str, Any] = {"actor": actor}
+        if action:
+            query["action"] = action
+        cursor = self.audit.find(query).sort("at", -1).limit(limit)
+        return await cursor.to_list(length=limit)
+
     async def ensure_indexes(self) -> None:
         """Índices ESR para los patrones de acceso dominantes (ver Fase 1)."""
         await self.transactions.create_index([("createdAt", -1), ("_id", -1)])
@@ -116,6 +175,8 @@ class TransactionsRepository:
         await self.transactions.create_index([("status", 1), ("amount", -1), ("_id", -1)])
         await self.transactions.create_index([("searchKeys", 1)])
         await self.audit.create_index([("transactionId", 1), ("at", 1)])
+        # "Mi actividad": auditoría por actor, más reciente primero.
+        await self.audit.create_index([("actor", 1), ("at", -1)])
 
 
 def build_list_query(

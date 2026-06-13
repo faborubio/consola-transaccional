@@ -71,7 +71,7 @@ jobs:
         run: |
           uv run --script infra/ci/check_drift.py \
             contracts/openapi.yaml /tmp/txn-openapi.json \
-            --match-path '^/(health$|transactions$|transactions/\{id\}(/audit|/transitions)?$)'
+            --match-path '^/(health$|transactions$|transactions/\{id\}(/audit|/transitions)?$)|^/metrics/dashboard$|^/activity$'
       - name: Diff auth contra contracts/openapi.yaml
         run: |
           uv run --script infra/ci/check_drift.py \

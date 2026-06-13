@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 export PATH := $(HOME)/.local/bin:$(HOME)/.nvm/versions/node/v24.16.0/bin:$(PATH)
 COMPOSE := docker compose -f infra/docker-compose.yml
-DRIFT_PATHS := ^/(health$$|transactions$$|transactions/\{id\}(/audit|/transitions)?$$)
+DRIFT_PATHS := ^/(health$$|transactions$$|transactions/\{id\}(/audit|/transitions)?$$)|^/metrics/dashboard$$|^/activity$$
 
 .PHONY: help up down seed test test-backend test-frontend lint drift front generate-api keys
 

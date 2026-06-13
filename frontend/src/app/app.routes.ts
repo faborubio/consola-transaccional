@@ -19,5 +19,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/transactions/transaction-detail').then((m) => m.TransactionDetail),
   },
+  {
+    path: 'dashboard',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
+  },
+  {
+    path: 'activity',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/dashboard/activity').then((m) => m.Activity),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'transactions' },
 ];
