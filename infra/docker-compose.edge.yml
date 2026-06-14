@@ -1,0 +1,15 @@
+# Override: el gateway pasa a ser la IMAGEN EDGE (SPA Angular horneado + nginx que
+# proxea /api). El compose base usa nginx pelado (en dev el SPA lo sirve `ng serve`);
+# este override sirve el artefacto real same-origin en :8080.
+#
+# Uso:
+#   e2e/local:  docker compose -f docker-compose.yml -f docker-compose.edge.yml up
+#   prod (VM):  + -f docker-compose.prod.yml  (añade Caddy/TLS y cierra datastores)
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    # Nuevo tag: sin esto, `build` sobre el `image: nginx:...` del base reescribiría
+    # ese tag oficial. El mount de nginx.conf del base es inofensivo (mismo archivo).
+    image: consola-edge:local

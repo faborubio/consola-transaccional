@@ -112,6 +112,25 @@ jobs:
       - name: Build producción
         run: npx ng build
 
+  e2e:
+    name: E2e (Playwright contra la imagen edge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar deps del frontend + navegador (con libs de sistema)
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Camino feliz login→listado→filtro→detalle→transición
+        run: bash infra/ci/run_e2e.sh
+
   docker:
     name: Build de imágenes
     runs-on: ubuntu-latest

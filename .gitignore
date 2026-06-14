@@ -13,6 +13,12 @@ dist/
 .angular/
 coverage/
 
+# Playwright (e2e)
+playwright-report/
+test-results/
+blob-report/
+.last-run.json
+
 # Cliente generado (se regenera desde contracts/openapi.yaml)
 # Se versiona para que el repo compile sin Java; ver frontend/README.
 # frontend/src/app/api-client/

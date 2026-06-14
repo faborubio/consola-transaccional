@@ -6,7 +6,7 @@ DRIFT_PATHS := ^/(health$$|transactions$$|transactions/\{id\}(/audit|/transition
 
 KIND_CLUSTER := consola
 .PHONY: help up down seed test test-backend test-frontend lint drift front generate-api keys \
-        schemathesis k8s-tools k8s-up k8s-down
+        schemathesis e2e load k8s-tools k8s-up k8s-down
 
 keys: ## Genera el par RS256 local en infra/keys (fuera de git)
 	mkdir -p infra/keys
@@ -49,6 +49,9 @@ generate-api: ## Regenera el cliente TS desde contracts/openapi.yaml (requiere J
 
 schemathesis: ## Fuzzing del contrato autenticado (auth + transactions); igual que CI
 	bash infra/ci/run_schemathesis.sh
+
+e2e: ## E2e Playwright contra la imagen edge (stack+seed+test); el navegador necesita libs (CI)
+	bash infra/ci/run_e2e.sh
 
 k8s-tools: ## Instala kind y kubectl en ~/.local/bin (sin sudo, usan el Docker local)
 	bash infra/k8s/install-tools.sh
