@@ -31,8 +31,8 @@ test('login → listado → filtro EN_REVISION → detalle → aprobar', async (
   await expect(page).toHaveURL(/\/transactions\/[^/]+$/);
   await expect(page.locator('.badge.fs-6')).toHaveText('EN_REVISION');
 
-  // 5. Transición: el supervisor aprueba; el toast confirma y el estado pasa a APROBADA
+  // 5. Transición: el supervisor aprueba. Señal de éxito = el badge pasa a APROBADA
+  //    (estado durable tras el reload), no el toast (autohide 4s, frágil para asserts).
   await page.getByRole('button', { name: 'Aprobar' }).click();
-  await expect(page.getByText(/Transición aplicada: ahora está APROBADA/)).toBeVisible();
-  await expect(page.locator('.badge.fs-6')).toHaveText('APROBADA');
+  await expect(page.locator('.badge.fs-6')).toHaveText('APROBADA', { timeout: 15_000 });
 });

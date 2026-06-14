@@ -130,6 +130,15 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Camino feliz login→listado→filtro→detalle→transición
         run: bash infra/ci/run_e2e.sh
+      - name: Diagnóstico si falla (estado de la página + logs)
+        if: failure()
+        run: |
+          for f in frontend/test-results/*/error-context.md; do
+            echo "===== $f ====="; cat "$f" || true
+          done
+          echo "===== logs transactions ====="
+          docker compose -f infra/docker-compose.yml -f infra/docker-compose.edge.yml \
+            logs --tail=40 transactions || true
 
   docker:
     name: Build de imágenes
