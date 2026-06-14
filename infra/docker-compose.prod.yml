@@ -1,0 +1,67 @@
+# Override de PRODUCCIÓN (VM pública). Se apila sobre base + edge:
+#   docker compose -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.prod.yml up -d
+#
+# Endurecimiento para internet:
+#  - Caddy termina TLS (Let's Encrypt automático para el dominio DuckDNS) y es la ÚNICA
+#    puerta pública (80/443). El edge ya no publica 8080; Caddy lo alcanza por la red.
+#  - Mongo/Redis NO se publican (`!reset []` borra los puertos del base; en un override
+#    las listas se FUSIONAN, así que `[]` a secas no basta). Defensa en profundidad junto
+#    al firewall de la VM.
+#  - restart: unless-stopped (sobrevive reinicios), límites de memoria (caber en 8GB) y
+#    rotación de logs (json-file no crece sin tope).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Dominio DuckDNS (p. ej. consola-sonda.duckdns.org). Caddy saca el cert solo.
+      DOMAIN: ${DOMAIN:?define DOMAIN=tu-sub.duckdns.org}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # certificados (persisten entre reinicios)
+      - caddy-config:/config
+    depends_on:
+      - gateway
+    networks: [backend]
+    logging: *logging
+
+  gateway:
+    restart: unless-stopped
+    ports: !reset [] # ya no es público; lo alcanza Caddy por la red interna
+    logging: *logging
+
+  mongo:
+    restart: unless-stopped
+    ports: !reset [] # datastore NO expuesto a internet
+    mem_limit: 4g
+    logging: *logging
+
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+    mem_limit: 1g
+    logging: *logging
+
+  auth:
+    restart: unless-stopped
+    mem_limit: 512m
+    logging: *logging
+
+  transactions:
+    restart: unless-stopped
+    mem_limit: 1g
+    logging: *logging
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,20 @@
+# Levanta el stack al boot de la VM (además del restart:unless-stopped de los contenedores,
+# por si fueron eliminados). Instalar: copiar a /etc/systemd/system/, `systemctl enable --now`.
+# Requiere /etc/consola.env con DOMAIN=tu-sub.duckdns.org y el repo en /opt/consola.
+[Unit]
+Description=Consola de Operaciones Transaccionales (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/consola/infra
+EnvironmentFile=/etc/consola.env
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

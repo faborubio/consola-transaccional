@@ -1,0 +1,7 @@
+# TLS automático (Let's Encrypt vía HTTP-01) para el dominio DuckDNS, y reverse-proxy al
+# edge (que sirve el SPA + proxea /api). {$DOMAIN} se inyecta desde el entorno (compose).
+# El dominio debe resolver a la IP de la VM ANTES de levantar Caddy (para el reto HTTP-01).
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy gateway:8080
+}
