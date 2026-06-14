@@ -38,6 +38,11 @@ for _ in $(seq 1 60); do
     python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null && break
   sleep 3
 done
+
+# El Caddyfile es un bind-mount → `up` no recrea Caddy; recargar para aplicar cambios
+# (headers de seguridad, dominio). Inofensivo en el primer deploy.
+docker compose "${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+
 # Sembrar SOLO si la base está vacía: así un redeploy (o el CD) no borra los datos ni
 # paga 500k inserts cada vez. El cron de abajo se encarga de refrescar la demo.
 COUNT=$(docker compose "${COMPOSE[@]}" exec -T mongo \
