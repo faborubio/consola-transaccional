@@ -240,6 +240,12 @@ Para SONDA específicamente, el segundo es el que abre la puerta; el primero es 
 
 ## Registro de cambios
 
+### v1.11 → v1.12 (Fase 7 + auditoría — 2026-06-14)
+
+Fase 7 (pulido, pruebas, narrativa, demo): **e2e Playwright** (login→listado→filtro→detalle→transición) contra la imagen edge, verde en CI — señal de éxito por el badge durable, no el toast (autohide 4s). **k6** del listado filtrado, directo al backend para aislar del rate-limit del edge: **p95 26 ms sobre 500k, 0% errores**. README como narrativa de decisiones de entrevista. **Demo pública en vivo**: GCP e2-standard-2 + docker-compose (override `prod` con Caddy/TLS automático sobre DuckDNS, datastores cerrados con `!reset []`, `restart`, límites de memoria, rotación de logs, systemd, reseed). Los dos primeros bullets del plan (tests de máquina de estados + flujo transaccional) ya estaban desde Fase 4.
+
+Auditoría (verificando la demo en vivo): (1) faltaban **headers de seguridad** y se filtraba la versión de nginx → Caddy añade HSTS/nosniff/X-Frame-Options/Referrer-Policy y quita `Server`, `server_tokens off` en el edge; (2) el **cron de reseed no se instalaba** (solo se imprimía) → instalación idempotente; (3) el deploy **sembraba `--drop` siempre** → condicional (CD-safe); (4) **Caddyfile bind-mount por inodo** (`git pull` lo reemplaza, `reload` no basta) → `--force-recreate` (problemas-resueltos #37); (5) **footgun de `user:${UID}`** (un compose sin `UID` recrea auth como 1000 → no lee la clave 0600 → login 500) → clave 644 en la VM demo (#38). Todo re-verificado en vivo.
+
 ### v1.10 → v1.11 (auditoría post-Fase 6 — 2026-06-13)
 
 Verificaciones (rutas que la implementación no había ejercido) y hallazgos:

@@ -2,8 +2,9 @@
 
 Back-office bancario de portafolio (objetivo: oferta Desarrollador Angular en SONDA).
 Plan por fases: `docs/plan-consola-transaccional-sonda.md` — seguirlo en orden; cada
-fase cierra con su hito verificable. Estado actual: **Fase 6 cerrada y validada**
-(k8s sobre kind, Schemathesis autenticado en CI, correlation ID end-to-end).
+fase cierra con su hito verificable. Estado actual: **Fase 7 cerrada y auditada**
+(demo pública en vivo: https://traconsole.duckdns.org — GCP + docker-compose, Caddy/TLS,
+e2e Playwright en CI, k6 p95 26 ms sobre 500k). Pendiente opcional: CD a la VM.
 
 ## Reglas duras del proyecto
 

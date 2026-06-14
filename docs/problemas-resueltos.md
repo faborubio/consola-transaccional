@@ -7,6 +7,20 @@
 
 ---
 
+## 2026-06-14 — Auditoría Fase 7
+
+### 38. Un compose sin la env `UID` recrea `auth` como 1000 → no lee la clave 0600 → login 500 — RESUELTO
+- **Problema:** tras un `docker compose up -d --force-recreate caddy` corrido **como root sin `UID=`**, el login empezó a dar 500 (`PermissionError: /keys/jwt-private.pem`). `up -d <servicio>` recrea también sus dependencias (`caddy → gateway → auth`), y sin la env `UID` el `user: "${UID:-1000}"` del compose recreó `auth` como **uid 1000**, que no puede leer la clave 0600 del usuario de deploy (hermano de #18).
+- **Causa:** el mecanismo `user:${UID}` (de #18, pensado para dev) acopla la lectura de la clave al uid; cualquier invocación de compose que olvide `UID=` lo rompe.
+- **Solución:** en la VM demo single-tenant, la clave privada se deja **0644** (`chmod 644` en `deploy-on-vm.sh`): legible por cualquier uid → ningún compose sin `UID` rompe el login. En dev se conserva 0600 + `user:${UID}`. Recuperación inmediata: re-correr el deploy como el usuario dueño de la clave (pasa `UID=$(id -u)` correcto).
+- **Cómo evitarlo:** no acoplar la lectura de un secreto montado al uid del proceso si varias rutas operativas pueden recrear el contenedor con otro uid; en un host de un solo dueño, permisos legibles + el aislamiento del host (firewall, SSH) son más robustos que `user:${UID}`.
+
+### 37. Caddyfile bind-mount por inodo: `git pull` lo reemplaza y `reload` no aplica los cambios — RESUELTO
+- **Problema:** tras `git pull` con un Caddyfile nuevo (headers de seguridad), `docker compose up -d` no recreaba Caddy (su config no "cambió") y `caddy reload` adaptaba la config **sin** los headers. El contenedor seguía sirviendo el Caddyfile viejo.
+- **Causa:** Docker monta el bind-mount de **archivo por inodo**. `git pull` (como muchos editores) **reemplaza** el archivo (escribe uno nuevo y renombra) → inodo nuevo en el path del host, pero el contenedor sigue apuntando al **inodo viejo**. `reload` re-lee `/etc/caddy/Caddyfile` = el inodo viejo montado.
+- **Solución:** **recrear** el contenedor (`up -d --force-recreate caddy`) para que re-monte el archivo actual del path. El `reload` no basta para cambios de un archivo bind-mounteado que fue reemplazado.
+- **Cómo evitarlo:** para config en bind-mount que se actualiza con git/editores que reemplazan el archivo, recrear el contenedor (o montar el **directorio**, no el archivo, o usar un config provider). No confiar en `reload`/SIGHUP tras un reemplazo de archivo.
+
 ## 2026-06-13 — Fase 6
 
 ### 36. `uv run --with` no propaga PYTHONPATH → el hook de Schemathesis no carga → teatro verde — RESUELTO (lo destapó CI)
