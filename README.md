@@ -11,8 +11,8 @@ optimista.
 
 ## Demo en vivo
 
-🔗 **(desplegando en GCP — link próximamente)** <!-- DEMO_URL --> · entorno demo, datos
-ficticios; se re-siembra periódicamente.
+🔗 **<https://traconsole.duckdns.org>** · entorno demo, datos ficticios; se re-siembra
+periódicamente.
 
 Entra con `supervisor1` / `Demo1234!` y aprueba una transacción en revisión, o explora
 como `operador1` / `auditor1`. Desplegada en una VM GCP e2-standard-2 (2 vCPU/8GB) con
@@ -172,8 +172,22 @@ filtrado por estado + orden por fecha (índice ESR) con paginación por cursor �
 dominante del operador— medido directo contra el backend para aislar la capacidad del
 servicio del rate-limit del edge.
 
-<!-- K6_RESULTS -->
-> _Pendiente: medición en la VM (`make load`, 25 VUs sobre 500k docs)._
+**Entorno:** 500.000 documentos · VM GCP **e2-standard-2 (2 vCPU / 8 GB)**, Mongo en el
+mismo host · k6 con **25 VUs**, ~1:45 min (login una vez → listado filtrado → 2ª página
+por cursor) · **directo al backend** (sin el rate-limit de 20 r/s del edge).
+
+| Métrica | Valor |
+|---|---|
+| Latencia **p95** | **26 ms** |
+| Latencia p50 / p90 | 7.5 ms / 17 ms |
+| Errores | **0.00 %** (0 de 4.075 requests) |
+| Checks | 100 % (login + listado + paginación) |
+| Throughput | 38,5 req/s |
+
+p95 de **26 ms sobre medio millón de filas** confirma que los índices ESR + el cursor
+compuesto hacen su trabajo: la query dominante no degrada a volumen. El throughput está
+acotado por el think-time del test (25 VUs, `sleep(1)`), no por el servicio — con p95
+estable y 0 errores hay holgura de sobra.
 
 ## Pruebas y CI
 
@@ -223,4 +237,8 @@ Registro de problemas → causa → solución: [docs/problemas-resueltos.md](doc
   StatefulSet de Mongo con init de replica set, probes, claves RS256 como Secret);
   un correlation ID atraviesa edge→auth→transactions en los logs; bases `auth_db` y
   `transactions_db` separadas — verificado en vivo
-- [ ] Fase 7 — Playwright, k6, narrativa completa
+- [x] **Fase 7 — Pulido, pruebas y narrativa:** e2e Playwright (login→listado→filtro→
+  detalle→transición) contra la imagen edge en CI; load test k6 (p95 26 ms sobre 500k);
+  README como narrativa de decisiones; **demo pública en vivo** en GCP (VM e2-standard-2
+  + docker-compose, Caddy/TLS automático sobre DuckDNS, datastores cerrados, reseed
+  periódico) — <https://traconsole.duckdns.org>
