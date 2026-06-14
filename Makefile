@@ -53,6 +53,12 @@ schemathesis: ## Fuzzing del contrato autenticado (auth + transactions); igual q
 e2e: ## E2e Playwright contra la imagen edge (stack+seed+test); el navegador necesita libs (CI)
 	bash infra/ci/run_e2e.sh
 
+load: ## Load test k6 del listado, directo al backend (sin rate-limit); requiere el stack arriba
+	docker run --rm --network consola-transaccional_backend \
+	  -v $(CURDIR)/infra/load:/scripts:ro \
+	  -e AUTH_BASE=http://auth:8000 -e TXN_BASE=http://transactions:8000 \
+	  grafana/k6 run /scripts/listado.js
+
 k8s-tools: ## Instala kind y kubectl en ~/.local/bin (sin sudo, usan el Docker local)
 	bash infra/k8s/install-tools.sh
 
