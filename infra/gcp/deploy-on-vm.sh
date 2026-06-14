@@ -25,6 +25,10 @@ if [[ ! -f keys/jwt-private.pem ]]; then
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/jwt-private.pem
   openssl pkey -in keys/jwt-private.pem -pubout -out keys/jwt-public.pem
 fi
+# En esta VM demo single-tenant, la clave es legible por cualquier uid: así un compose
+# que corra sin la env UID (que recrearía auth como uid 1000) no rompe la lectura de la
+# clave (PermissionError → login 500). En dev se mantiene 0600 + user:${UID} (#18).
+chmod 644 keys/jwt-private.pem
 
 # 3. Stack de producción. `env UID/GID`: auth corre con ese uid para leer la clave 0600
 #    montada (problemas-resueltos #18). DOMAIN va al Caddyfile para el cert TLS.
