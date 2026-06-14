@@ -39,9 +39,10 @@ for _ in $(seq 1 60); do
   sleep 3
 done
 
-# El Caddyfile es un bind-mount → `up` no recrea Caddy; recargar para aplicar cambios
-# (headers de seguridad, dominio). Inofensivo en el primer deploy.
-docker compose "${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+# El Caddyfile es un bind-mount POR INODO y `git pull` lo REEMPLAZA (inodo nuevo): `up`
+# no recrea Caddy y un `reload` leería el inodo viejo. Force-recreate lo re-monta con el
+# archivo actual (así aplican headers/dominio). Inofensivo en el primer deploy.
+docker compose "${COMPOSE[@]}" up -d --force-recreate caddy
 
 # Sembrar SOLO si la base está vacía: así un redeploy (o el CD) no borra los datos ni
 # paga 500k inserts cada vez. El cron de abajo se encarga de refrescar la demo.
