@@ -9,6 +9,15 @@ optimista.
 > **Encuadre honesto:** demostración técnica de los patrones del dominio
 > transaccional (banca/retail), no experiencia bancaria de producción.
 
+## Demo en vivo
+
+🔗 **(desplegando en GCP — link próximamente)** <!-- DEMO_URL --> · entorno demo, datos
+ficticios; se re-siembra periódicamente.
+
+Entra con `supervisor1` / `Demo1234!` y aprueba una transacción en revisión, o explora
+como `operador1` / `auditor1`. Desplegada en una VM GCP e2-standard-2 (2 vCPU/8GB) con
+`docker-compose`, detrás de Caddy (TLS automático). Misma imagen que corre en CI y kind.
+
 ## Arquitectura
 
 ```
@@ -73,11 +82,21 @@ Hace login real e inyecta el bearer en cada request generado (sin el hook sería
 paso verde que solo recibe 401). Cazó dos bugs reales en Fase 6 — ver
 [problemas-resueltos](docs/problemas-resueltos.md) #29 y #30.
 
-## Decisiones de diseño (resumen — se expande en Fase 7)
+## Decisiones de diseño (las que valen en entrevista)
+
+Cada decisión como *qué elegí y por qué no la alternativa obvia*.
 
 - **Mongo en replica set de un nodo desde el día uno:** standalone rechaza las
   transacciones multi-documento en *runtime*; sin esto la atomicidad
   estado + auditoría de la Fase 4 no existe.
+- **Máquina de estados como datos, no `if/else`:** las transiciones válidas son un
+  diccionario `(estado, acción) → estado`. Un test exhaustivo recorre las 20
+  combinaciones (5 estados × 4 acciones) en un loop —no 20 tests que dejan huecos—;
+  un `if/else` regado por los handlers no es testeable así ni se audita de un vistazo.
+- **Idempotencia con `SET NX` atómico, no GET-luego-SET:** la idempotency-key se reclama
+  con un único `SET NX` (test-and-set atómico); dos requests simultáneos con la misma
+  clave → solo uno ejecuta la mutación, el otro recibe el resultado original. Un
+  GET-luego-SET tiene una ventana de carrera. Fail-closed: sin Redis NO se muta (503).
 - **Cursor compuesto (`createdAt` + `_id`), no offset ni cursor simple:**
   `OFFSET 400000` recorre 400k filas para descartarlas; un cursor sobre un solo
   campo con timestamps duplicados salta o repite filas.
@@ -145,6 +164,23 @@ búsqueda por prefijo acotado, `maxTimeMS` con fallo rápido accionable,
 idempotencia y auditoría atómica — son los mismos a cualquier escala; lo que
 se reemplaza alrededor es infraestructura. Un diseño basado en
 `OFFSET`/`COUNT(*)`/substring sí se tira entero al crecer.
+
+## Rendimiento sobre 500k (k6)
+
+Números **con su entorno** (sin entorno son marketing). El camino caliente es el listado
+filtrado por estado + orden por fecha (índice ESR) con paginación por cursor —la query
+dominante del operador— medido directo contra el backend para aislar la capacidad del
+servicio del rate-limit del edge.
+
+<!-- K6_RESULTS -->
+> _Pendiente: medición en la VM (`make load`, 25 VUs sobre 500k docs)._
+
+## Pruebas y CI
+
+`make test` (ruff+pytest backend, eslint+vitest+build frontend), `make drift`
+(candado de contrato), `make schemathesis` (fuzzing autenticado), `make e2e`
+(Playwright: login→listado→filtro→detalle→transición contra la imagen edge), `make load`
+(k6). Todo corre en GitHub Actions en cada push.
 
 Plan completo de fases: [docs/plan-consola-transaccional-sonda.md](docs/plan-consola-transaccional-sonda.md).
 Registro de problemas → causa → solución: [docs/problemas-resueltos.md](docs/problemas-resueltos.md).
