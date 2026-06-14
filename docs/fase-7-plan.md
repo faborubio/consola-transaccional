@@ -1,28 +1,68 @@
-# Fase 7 — Plan aprobado y punto de retome
+# Fase 7 — Estado y trabajo pendiente
 
-> **Estado (2026-06-13):** plan APROBADO, **sin código aún**. Árbol de git limpio
-> (Fase 6 cerrada/pusheada/CI verde). Retomar por el **Entregable 1 (e2e Playwright)**.
-> Se pausó justo antes de `npm i -D @playwright/test`.
+> **Estado (2026-06-14):** Fase 7 **CERRADA Y AUDITADA**. Demo pública EN VIVO:
+> **https://traconsole.duckdns.org** (GCP e2-standard-2 + docker-compose, Caddy/TLS sobre
+> DuckDNS, 500k docs). e2e Playwright verde en CI; k6 **p95 26 ms sobre 500k, 0% errores**;
+> README como narrativa de decisiones. Auditoría aplicada en vivo. Todo en GitHub, CI
+> verde, árbol limpio. Entregables E1–E4 + demo + auditoría: HECHOS (detalle histórico abajo).
 
-## Dónde quedamos / orden de retome
+## ⏭️ Pendiente para la próxima sesión
 
-1. **Entregable 1 — E2e Playwright** ← EMPEZAR AQUÍ
-2. Entregable 2 — k6 load test
-3. Entregable 3 — README narrativa
-4. Entregable 4 — Compose de producción (edge + Caddy/DuckDNS + hardening)
-5. Entregable 5 — Despliegue GCP con CD (necesita auth del usuario)
-6. Entregable 6 — Pasada de seguridad
+### A. CD — GitHub Actions → Artifact Registry → VM (el usuario lo eligió)
 
-Trabajo local primero (E1–E4 + workflow CD), verificable sin GCP; el despliegue en la
-VM se coordina con el usuario al final.
+Hoy la VM **construye las imágenes localmente** (`deploy-on-vm.sh` → `up -d --build`).
+El CD las construye en CI, las empuja a **Artifact Registry**, y la VM hace `pull`. Pasos:
 
-## Qué necesito del usuario (para el despliegue, sin prisa)
+1. **Refactor de imágenes (local, testeable SIN GCP):** añadir
+   `image: ${REGISTRY:-consola}/<svc>:${TAG:-local}` a `auth`/`transactions` (base
+   `infra/docker-compose.yml`) y al `gateway` (override `infra/docker-compose.edge.yml`),
+   parametrizado. Dev sigue construyendo local (defaults); CI/VM usan `REGISTRY=<AR>`
+   `TAG=<sha>`. **Verificar que `make up` y `make e2e` siguen funcionando.**
+2. **GCP:** crear repo de Artifact Registry (docker); **service account** para que la VM
+   haga `pull` (`gcloud auth configure-docker <region>-docker.pkg.dev`); auth GH→GCP por
+   **Workload Identity Federation** (keyless, lo correcto) — fallback: SA key como secreto.
+3. **`.github/workflows/deploy.yml`** (push a main o tag): build+push de las 3 imágenes a
+   AR → `gcloud compute ssh` (o SSH con llave) a la VM → `docker compose ... pull && up -d`.
+   El deploy en la VM YA es idempotente/CD-safe (no re-siembra — hallazgo #3 de auditoría).
+4. `make gcp-deploy` opcional para disparo manual.
 
-- `gcloud auth login` hecho + **project id** de GCP (free trial: ~USD 300, 81 días).
-- Subdominio de **DuckDNS** + su **token**.
-- ¿Reutilizar VM/demo existente o provisiono una fresca **e2-standard-2** (2 vCPU/8GB)?
+**Del usuario:** project id GCP; permiso para crear AR + SA/WIF; configurar secretos en
+GitHub (o que me deje guiarlo). **La VM debe seguir ARRIBA** para que el CD deploye.
 
-## Decisiones acordadas (no re-preguntar)
+### B. Limpieza / costos
+
+- **Quitar mi llave SSH** de la VM (Compute Engine → VM `consola` → Editar → Claves SSH →
+  borrar el item `ssh-ed25519 … claude`). **OJO:** si quieres que yo siga ayudando con la
+  VM (probar el CD), **DÉJALA** — la privada vive en `~/.ssh/gcp_consola` de mi entorno
+  (persiste en esta máquina). Bórrala al terminar todo.
+- **Costos:** la VM consume crédito mientras corre. **IP estática recomendada** (gratis si
+  está adjunta a una VM corriendo) → el link y el target SSH del CD quedan estables sin
+  re-apuntar DuckDNS en cada restart. Si la apagas, al reiniciar cambia la IP → re-apuntar.
+
+### C. (Opcional) Fase 8 — roadmap v2 documentado
+
+Solo documentación en el README: outbox + Redis Streams, `notifications`, conciliación
+batch, motor de reglas. El plan: "se documenta aunque no esté construido".
+
+## Cómo está desplegado hoy (referencia para operar la VM)
+
+- **Deploy/redeploy:** `DOMAIN=traconsole.duckdns.org bash ~/consola/infra/gcp/deploy-on-vm.sh`
+  corrido en la VM **como `fabian_rubiocs`** (clona/pull, claves, `up -d --build` con el
+  override prod, siembra si vacío, force-recreate de Caddy, instala cron).
+- **Acceso:** `ssh -i ~/.ssh/gcp_consola claude@traconsole.duckdns.org` (mi llave, en esta
+  máquina). Para correr el deploy como fabian:
+  `ssh … "sudo -u fabian_rubiocs bash -lc 'cd ~/consola && DOMAIN=traconsole.duckdns.org bash infra/gcp/deploy-on-vm.sh'"`.
+- **Stack:** base + `docker-compose.edge.yml` (gateway=imagen edge) + `docker-compose.prod.yml`
+  (Caddy/TLS, datastores cerrados con `!reset`, restart, mem-limits, logs).
+- **GOTCHA CRÍTICO (problemas-resueltos #38):** NUNCA correr compose en la VM **sin la env
+  `UID` correcta** ni **como root** — recrea `auth` como uid 1000 → no lee la clave → login
+  500. La clave es 644 para mitigarlo, pero usar `deploy-on-vm.sh` como `fabian_rubiocs` es
+  lo seguro. El Caddyfile es bind-mount por inodo (#37): tras `git pull`, `--force-recreate`,
+  no `reload`.
+
+---
+
+## Decisiones acordadas (referencia histórica — ya implementadas)
 
 - Demo en **GCP Compute Engine**, VM **e2-standard-2 (2 vCPU/8GB)** + docker-compose,
   **seed 500k**.
