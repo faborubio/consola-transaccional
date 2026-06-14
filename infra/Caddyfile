@@ -3,5 +3,13 @@
 # El dominio debe resolver a la IP de la VM ANTES de levantar Caddy (para el reto HTTP-01).
 {$DOMAIN} {
 	encode zstd gzip
+	header {
+		# Endurecimiento del borde público (TLS ya forzado por el redirect de Caddy).
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server # no filtrar la versión del upstream
+	}
 	reverse_proxy gateway:8080
 }

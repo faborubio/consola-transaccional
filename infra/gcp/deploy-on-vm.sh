@@ -38,12 +38,27 @@ for _ in $(seq 1 60); do
     python -c "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null && break
   sleep 3
 done
-SEED_COUNT="$SEED_COUNT" REPO_DIR="$REPO_DIR" bash gcp/reseed.sh
+# Sembrar SOLO si la base está vacía: así un redeploy (o el CD) no borra los datos ni
+# paga 500k inserts cada vez. El cron de abajo se encarga de refrescar la demo.
+COUNT=$(docker compose "${COMPOSE[@]}" exec -T mongo \
+  mongosh --quiet --eval 'db.getSiblingDB("transactions_db").transactions.estimatedDocumentCount()' \
+  2>/dev/null | tr -dc '0-9' || true)
+if [[ "${COUNT:-0}" -lt 1 ]]; then
+  echo "Base vacía → sembrando $SEED_COUNT…"
+  SEED_COUNT="$SEED_COUNT" REPO_DIR="$REPO_DIR" bash gcp/reseed.sh
+else
+  echo "Ya hay $COUNT transacciones; no se re-siembra (idempotente)."
+fi
+
+# 5. Cron de reseed (idempotente): re-siembra cada 6h para datos demo limpios.
+if ! crontab -l 2>/dev/null | grep -qF "gcp/reseed.sh"; then
+  (crontab -l 2>/dev/null
+   echo "0 */6 * * * SEED_COUNT=$SEED_COUNT REPO_DIR=$REPO_DIR bash $REPO_DIR/infra/gcp/reseed.sh >> \$HOME/reseed.log 2>&1") | crontab -
+  echo "Cron de reseed instalado (cada 6h)."
+fi
 
 cat <<EOF
 
 ✅ Demo desplegada: https://$DOMAIN  (login: supervisor1 / Demo1234!)
    Caddy provisiona el cert TLS al primer acceso (unos segundos).
-   Cron de reseed (datos limpios) — instalar con:
-     (crontab -l 2>/dev/null; echo "0 */6 * * * SEED_COUNT=$SEED_COUNT REPO_DIR=$REPO_DIR bash $REPO_DIR/infra/gcp/reseed.sh >> \$HOME/reseed.log 2>&1") | crontab -
 EOF
