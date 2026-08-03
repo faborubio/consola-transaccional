@@ -15,13 +15,13 @@
   "packageManager": "npm@11.13.0",
   "dependencies": {
     "@angular/cdk": "^21.2.14",
-    "@angular/common": "^21.2.0",
+    "@angular/common": "^22.1.0",
     "@angular/compiler": "^21.2.0",
     "@angular/core": "^21.2.0",
-    "@angular/forms": "^21.2.0",
-    "@angular/platform-browser": "^21.2.0",
-    "@angular/router": "^21.2.0",
-    "@ng-bootstrap/ng-bootstrap": "^20.0.0",
+    "@angular/forms": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@angular/router": "^22.1.0",
+    "@ng-bootstrap/ng-bootstrap": "^21.0.0",
     "bootstrap": "^5.3.8",
     "chart.js": "^4.5.1",
     "ng2-charts": "^10.0.0",
@@ -29,7 +29,7 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.15",
+    "@angular/build": "^22.1.2",
     "@angular/cli": "^21.2.15",
     "@angular/compiler-cli": "^21.2.0",
     "@eslint/js": "^10.0.1",
